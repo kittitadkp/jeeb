@@ -8,7 +8,7 @@ docs/
   api/             # API specs, contracts
   backend/         # Go backend specs
   features/        # Feature specs per module
-  frontend/        # UI specs, components
+  frontend/        # UI specs, design system
   guides/          # How-to guides
   troubleshooting/ # Error solutions
   decisions/       # ADRs (Architecture Decision Records)
@@ -19,8 +19,6 @@ docs/
 - [Architecture Overview](architecture/overview.md)
 - [API Reference](api/endpoints.md)
 - [Backend Spec](backend/spec.md)
-- [Frontend Spec](frontend/spec.md)
-- [Component Design](frontend/components.md)
-- [Page Specs](frontend/pages.md)
 - [Development Guide](guides/development.md)
+- [Deployment Guide](guides/deployment.md)
 - [Troubleshooting](troubleshooting/README.md)

@@ -3,16 +3,35 @@
 Personal management app: workouts, study, sleep, finance, calendar notifications.
 
 ## Stack
-- Frontend: React | Backend: Go | DB: MongoDB | Auth: Keycloak | Infra: Docker Compose
+- Frontend: React | Backend: Go | DB: MongoDB | Auth: Keycloak | Infra: Kubernetes
+
+## Ports (NodePort)
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:30000 |
+| Backend API | http://localhost:30080 |
+| Keycloak | http://localhost:30081 |
+| Jenkins | http://localhost:30082 |
+| Nexus UI | http://localhost:30083 |
+| SonarQube | http://localhost:30090 |
+| MongoDB | mongodb://localhost:30017 |
+| Nexus Registry | localhost:30050 |
 
 ## Commands
 ```bash
-docker-compose up --build    # Build and run
-docker-compose up -d         # Background
-```
+# Apply all k8s manifests
+bash k8s/apply.sh
 
-## Ports
-Frontend:3000 | API:8080 | MongoDB:27017 | Keycloak:8081
+# Check pods
+kubectl get pods -n jeeb
+
+# Logs
+kubectl logs -n jeeb deployment/backend
+kubectl logs -n jeeb deployment/frontend
+
+# Restart
+kubectl rollout restart deployment/backend -n jeeb
+```
 
 ## Architecture (Clean/Hexagonal)
 ```

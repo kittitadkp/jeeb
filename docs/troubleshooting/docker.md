@@ -1,90 +1,105 @@
-# Docker Troubleshooting
+# Kubernetes Troubleshooting
 
-## Port already in use
+## Pod stuck in Pending
 
-**Error:**
-```
-Bind for 0.0.0.0:3000 failed: port is already allocated
-```
-
-**Cause:**
-Another process using the port.
+**Cause:** Insufficient resources or unschedulable node.
 
 **Solution:**
 ```bash
-# Find process
-netstat -ano | findstr :3000  # Windows
-lsof -i :3000                 # Linux/Mac
+kubectl describe pod -n jeeb <pod-name>
+# Look at Events section for reason
 
-# Kill or change port in docker-compose.yml
+# Check node resources
+kubectl describe nodes
 ```
 
 ---
 
-## Container won't start
+## Pod CrashLoopBackOff
 
-**Error:**
-```
-container exited with code 1
-```
-
-**Cause:**
-App crash on startup.
+**Cause:** App crashes on startup — missing env vars, bad config, or port conflict.
 
 **Solution:**
 ```bash
-docker-compose logs <service>
-# Check for missing env vars or config errors
+kubectl logs -n jeeb <pod-name> --previous
+kubectl describe pod -n jeeb <pod-name>
 ```
 
 ---
 
-## Image build fails
+## ImagePullBackOff
 
-**Error:**
-```
-failed to solve: process "/bin/sh -c ..." did not complete successfully
-```
-
-**Cause:**
-Build step failed (missing deps, syntax error).
+**Cause:** Cannot pull image from Nexus registry.
 
 **Solution:**
 ```bash
-# Rebuild without cache
-docker-compose build --no-cache
+# Verify image exists in Nexus
+curl http://localhost:30083
+
+# Check the docker secret is applied
+kubectl get secret nexus-docker-secret -n jeeb
+
+# Recreate the secret
+kubectl create secret docker-registry nexus-docker-secret \
+  --docker-server=localhost:30050 \
+  --docker-username=admin \
+  --docker-password=<password> \
+  -n jeeb
 ```
 
 ---
 
-## Volume permission denied
+## Service not reachable
 
-**Error:**
-```
-permission denied: '/data/db'
-```
-
-**Cause:**
-Host/container user mismatch.
+**Cause:** Pod not ready, wrong NodePort, or service selector mismatch.
 
 **Solution:**
 ```bash
-# Reset volumes
-docker-compose down -v
-docker-compose up
+# Check service and endpoints
+kubectl get svc -n jeeb
+kubectl get endpoints -n jeeb
+
+# Verify pod labels match service selector
+kubectl describe svc backend -n jeeb
+kubectl get pods -n jeeb --show-labels
+```
+
+---
+
+## PVC stuck in Pending
+
+**Cause:** No StorageClass available or insufficient storage.
+
+**Solution:**
+```bash
+kubectl get pvc -n jeeb
+kubectl describe pvc <pvc-name> -n jeeb
+
+# Docker Desktop uses hostpath — ensure default StorageClass exists
+kubectl get storageclass
+```
+
+---
+
+## kubectl: connection refused
+
+**Cause:** Docker Desktop Kubernetes not running.
+
+**Solution:**
+- Open Docker Desktop → Settings → Kubernetes → Enable Kubernetes
+- Wait for the green indicator
+```bash
+kubectl cluster-info
 ```
 
 ---
 
 ## Out of disk space
 
-**Error:**
-```
-no space left on device
-```
-
-**Solution:**
 ```bash
+# Remove unused Docker images
 docker system prune -a
+
+# Remove unused volumes
 docker volume prune
 ```
