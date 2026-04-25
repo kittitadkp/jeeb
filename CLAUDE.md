@@ -131,7 +131,7 @@ Jenkins polls GitHub (`H/5 * * * *`) and runs pipelines defined in `jenkins/back
 
 Bootstrap Jenkins from scratch:
 ```bash
-go run jenkins/setup.go
+go run jenkins/jenkin-go/main.go
 ```
 
 Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
