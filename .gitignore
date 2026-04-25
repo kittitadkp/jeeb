@@ -1,0 +1,41 @@
+# Subprojects — managed in their own repos
+backend/
+frontend/
+jenkins/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Kubernetes secrets (never commit real secrets)
+k8s/**/secrets.yaml
+k8s/**/*-secret.yaml
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.bak
