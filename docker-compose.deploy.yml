@@ -1,0 +1,7 @@
+services:
+  backend:
+    image: ${IMAGE_BASE}/backend:${CI_COMMIT_SHORT_SHA:-latest}
+    build: null
+  frontend:
+    image: ${IMAGE_BASE}/frontend:${CI_COMMIT_SHORT_SHA:-latest}
+    build: null

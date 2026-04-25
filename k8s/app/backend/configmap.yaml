@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: jeeb
+data:
+  PORT: "8080"
+  LOG_LEVEL: INFO
+  READ_TIMEOUT: "10"
+  WRITE_TIMEOUT: "10"
+  MONGO_DATABASE: jeeb
+  KEYCLOAK_URL: http://keycloak.jeeb.svc.cluster.local:8080
+  KEYCLOAK_REALM: jeeb
+  KEYCLOAK_CLIENT_ID: jeeb-app

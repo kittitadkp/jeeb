@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose *)",
+      "Bash(docker *)",
+      "Bash(go build*)",
+      "Bash(go test*)",
+      "Bash(go run*)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(dir:*)",
+      "Bash(go mod *)",
+      "Bash(go get *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(sonar-scanner --version)",
+      "PowerShell(cd D:\\\\personal\\\\jeeb; docker run --rm -v \"${PWD}:/usr/src\" sonarsource/sonar-scanner-cli:latest sonar-scanner '-Dsonar.projectBaseDir=/usr/src' '-Dsonar.host.url=http://host.docker.internal:9000' '-Dsonar.token=squ_59ca1d3d83be9098ab02bc10c48fbcb924328af9')",
+      "PowerShell(docker exec jeeb-gitlab *)",
+      "PowerShell(docker exec jeeb-gitlab-runner *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "PowerShell(kubectl get pods *)",
+      "PowerShell(kubectl exec *)",
+      "PowerShell(kubectl logs *)",
+      "PowerShell(java *)"
+    ]
+  },
+  "mcpServers": {
+    "docker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-docker"
+      ]
+    }
+  }
+}

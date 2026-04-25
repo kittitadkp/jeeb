@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--bg); padding: 20px; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.section { display: flex; flex-direction: column; gap: 10px; min-width: 200px; }
+.field-label { font-size: 12px; font-weight: 500; color: #0F172A; margin-bottom: 2px; }
+.required { color: #DC2626; }
+input, select, textarea {
+  width: 100%; border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 8px 12px; font-size: 14px; font-family: var(--font-sans);
+  color: #0F172A; background: #fff; outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: #2563EB; box-shadow: 0 0 0 2px #DBEAFE; }
+input.error { border-color: #DC2626; }
+.helper { font-size: 11px; color: #64748B; margin-top: 3px; }
+.error-msg { font-size: 11px; color: #DC2626; margin-top: 3px; }
+.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.toggle-track { width: 36px; height: 20px; border-radius: 9999px; background: #2563EB; position: relative; flex-shrink: 0; }
+.toggle-track.off { background: #CBD5E1; }
+.toggle-thumb { position: absolute; top: 2px; width: 16px; height: 16px; border-radius: 9999px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0/.15); transition: left 0.15s; left: 18px; }
+.toggle-track.off .toggle-thumb { left: 2px; }
+.toggle-label { font-size: 14px; color: #0F172A; }
+</style>
+</head><body>
+<div class="section">
+  <div>
+    <div class="field-label">Workout Type <span class="required">*</span></div>
+    <select><option>Strength</option><option>Cardio</option><option>Flexibility</option></select>
+  </div>
+  <div>
+    <div class="field-label">Duration (minutes)</div>
+    <input type="number" placeholder="45" value="45">
+    <div class="helper">Between 1 and 480 minutes</div>
+  </div>
+  <div>
+    <div class="field-label">Notes</div>
+    <textarea rows="3" placeholder="How did it go?"></textarea>
+  </div>
+</div>
+<div class="section">
+  <div>
+    <div class="field-label">Search</div>
+    <input type="text" placeholder="Search workouts..." style="padding-left:32px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:10px center">
+  </div>
+  <div>
+    <div class="field-label">Amount</div>
+    <input type="text" class="error" value="abc">
+    <div class="error-msg">Please enter a valid number</div>
+  </div>
+  <div>
+    <div class="field-label">Disabled field</div>
+    <input type="text" placeholder="Cannot edit" disabled style="opacity:0.5;cursor:not-allowed">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+    <label class="toggle"><div class="toggle-track"><div class="toggle-thumb"></div></div><span class="toggle-label">Email reminders</span></label>
+    <label class="toggle"><div class="toggle-track off"><div class="toggle-thumb"></div></div><span class="toggle-label">Push notifications</span></label>
+  </div>
+</div>
+</body></html>

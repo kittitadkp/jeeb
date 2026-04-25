@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--bg); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row-label { font-size: 10px; color: var(--fg3); width: 80px; flex-shrink: 0; }
+button { cursor: pointer; border: none; font-family: var(--font-sans); font-size: 14px; font-weight: 500; border-radius: 8px; padding: 8px 16px; transition: background 0.15s; }
+.btn-primary { background: #2563EB; color: #fff; }
+.btn-primary:hover { background: #1D4ED8; }
+.btn-secondary { background: #F1F5F9; color: #334155; }
+.btn-secondary:hover { background: #E2E8F0; }
+.btn-outline { background: transparent; color: #2563EB; border: 1px solid #2563EB; }
+.btn-outline:hover { background: #EFF6FF; }
+.btn-ghost { background: transparent; color: #475569; }
+.btn-ghost:hover { background: #F1F5F9; }
+.btn-danger { background: #DC2626; color: #fff; }
+.btn-danger:hover { background: #B91C1C; }
+.btn-success { background: #16A34A; color: #fff; }
+.btn-sm { font-size: 12px; padding: 5px 10px; }
+.btn-lg { font-size: 16px; padding: 10px 22px; }
+.btn-icon { padding: 8px; border-radius: 8px; background: #F1F5F9; color: #475569; display: inline-flex; align-items: center; }
+.btn-icon:hover { background: #E2E8F0; }
+.btn-disabled { opacity: 0.45; pointer-events: none; }
+</style>
+</head><body>
+<div class="row"><div class="row-label">Variants</div>
+  <button class="btn-primary">Primary</button>
+  <button class="btn-secondary">Secondary</button>
+  <button class="btn-outline">Outline</button>
+  <button class="btn-ghost">Ghost</button>
+  <button class="btn-danger">Danger</button>
+  <button class="btn-success">Success</button>
+</div>
+<div class="row"><div class="row-label">Sizes</div>
+  <button class="btn-primary btn-sm">Small</button>
+  <button class="btn-primary">Default</button>
+  <button class="btn-primary btn-lg">Large</button>
+</div>
+<div class="row"><div class="row-label">States</div>
+  <button class="btn-primary">Default</button>
+  <button class="btn-primary btn-disabled">Disabled</button>
+  <button class="btn-secondary btn-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  </button>
+  <button class="btn-primary" style="display:inline-flex;align-items:center;gap:6px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    Add New
+  </button>
+</div>
+</body></html>

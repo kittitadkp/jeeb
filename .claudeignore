@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+bin/
+*.exe
+
+# Docker volumes
+mongo-data/
+keycloak-data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+*.pem
+*.key
+
+# Test artifacts
+coverage/
+*.cover
+*.out
+
+# OS
+.DS_Store
+Thumbs.db

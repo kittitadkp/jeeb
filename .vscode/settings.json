@@ -1,0 +1,13 @@
+{
+  "sonarlint.connectedMode.project": {
+    "connectionId": "jeeb-sonarqube",
+    "projectKey": "jeeb"
+  },
+   "sonarlint.connectedMode.connections.sonarqube": [
+    {
+      "connectionId": "jeeb-sonarqube",
+      "serverUrl": "http://localhost:9000",
+      "token": "squ_59ca1d3d83be9098ab02bc10c48fbcb924328af9"
+    }
+  ]
+}
