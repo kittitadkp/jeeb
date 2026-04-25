@@ -1,6 +1,6 @@
 # Subprojects — managed in their own repos
-backend/
-frontend/
+/backend/
+/frontend/
 
 # Environment secrets
 .env
@@ -38,3 +38,5 @@ tmp/
 temp/
 *.tmp
 *.bak
+
+.claude/settings.local.json

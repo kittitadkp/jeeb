@@ -31,7 +31,11 @@
       "PowerShell(kubectl *)",
       "PowerShell(java *)",
       "PowerShell(Invoke-RestMethod *)",
-      "PowerShell(Invoke-WebRequest *)"
+      "PowerShell(Invoke-WebRequest *)",
+      "Bash(kill %1)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -u admin:K@ng_12092540 \"http://localhost:30082/job/jeeb-backend/lastBuild/consoleText\")",
+      "Bash(curl *)"
     ]
   },
   "mcpServers": {

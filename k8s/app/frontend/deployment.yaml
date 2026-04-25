@@ -13,13 +13,43 @@ spec:
       labels:
         app: frontend
     spec:
+      serviceAccountName: frontend
       imagePullSecrets:
         - name: nexus-pull-secret
       containers:
+        - name: vault-agent
+          image: hashicorp/vault:1.17
+          args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.jeeb.svc.cluster.local:8200"
+          volumeMounts:
+            - name: vault-config
+              mountPath: /vault/config
+            - name: vault-secrets
+              mountPath: /app/env
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - IPC_LOCK
+
         - name: frontend
           image: localhost:30050/jeeb/frontend:latest
           ports:
             - containerPort: 80
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /app/env
           resources:
             requests:
               memory: 64Mi
@@ -33,3 +63,10 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 10
+
+      volumes:
+        - name: vault-config
+          configMap:
+            name: vault-agent-config-frontend
+        - name: vault-secrets
+          emptyDir: {}

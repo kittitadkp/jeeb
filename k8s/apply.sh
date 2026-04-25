@@ -4,6 +4,9 @@ set -e
 echo "==> Creating namespace"
 kubectl apply -f k8s/00-namespace.yaml
 
+echo "==> Deploying Vault"
+kubectl apply -f k8s/vault/
+
 echo "==> Deploying Jenkins"
 kubectl apply -f k8s/jenkins/
 
@@ -28,3 +31,4 @@ echo "  Nexus      http://localhost:30083"
 echo "  Backend    http://localhost:30080"
 echo "  Frontend   http://localhost:30000"
 echo "  Keycloak   http://localhost:30081"
+echo "  Vault      http://localhost:30091"

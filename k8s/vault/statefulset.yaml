@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: jeeb
+spec:
+  serviceName: vault
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      serviceAccountName: vault
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 100
+        runAsGroup: 1000
+      containers:
+        - name: vault
+          image: hashicorp/vault:1.17
+          command:
+            - vault
+            - server
+            - -config=/vault/config/vault.hcl
+          ports:
+            - name: api
+              containerPort: 8200
+            - name: cluster
+              containerPort: 8201
+          env:
+            - name: VAULT_ADDR
+              value: "http://127.0.0.1:8200"
+            - name: VAULT_API_ADDR
+              value: "http://vault.jeeb.svc.cluster.local:8200"
+            - name: SKIP_CHOWN
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /vault/config
+            - name: data
+              mountPath: /vault/data
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 250m
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&uninitcode=204&sealedcode=204
+              port: 8200
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - IPC_LOCK  # prevents secrets from being swapped to disk
+      volumes:
+        - name: config
+          configMap:
+            name: vault-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: vault-pvc

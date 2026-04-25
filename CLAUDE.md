@@ -45,6 +45,7 @@ kubectl exec -it -n jeeb deployment/backend -- sh
 | sonarqube | 30090 | `sonarqube.jeeb.svc.cluster.local:9000` |
 | mongodb | 30017 | `mongodb.jeeb.svc.cluster.local:27017` |
 | nexus (registry) | 30050 | `nexus.jeeb.svc.cluster.local:5000` |
+| vault | 30091 | `vault.jeeb.svc.cluster.local:8200` |
 
 ### k8s structure
 
@@ -61,6 +62,7 @@ k8s/
   jenkins/                    # deployment + pvc + rbac + service
   nexus/                      # deployment + pvc + service
   sonarqube/                  # deployment + pvc + service
+  vault/                      # statefulset + pvc + configmap + rbac + service
 ```
 
 Backend env vars come from `k8s/app/backend/configmap.yaml` (non-secret) and `mongo-secret` (MONGO_URI).

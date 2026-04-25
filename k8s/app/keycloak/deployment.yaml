@@ -33,9 +33,9 @@ spec:
             - name: KC_HEALTH_ENABLED
               value: "true"
             - name: KC_HOSTNAME_URL
-              value: http://localhost:30081
+              value: http://host.docker.internal:30081
             - name: KC_HOSTNAME_ADMIN_URL
-              value: http://localhost:30081
+              value: http://host.docker.internal:30081
           resources:
             requests:
               memory: 512Mi

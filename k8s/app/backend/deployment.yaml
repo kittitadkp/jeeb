@@ -13,22 +13,55 @@ spec:
       labels:
         app: backend
     spec:
+      serviceAccountName: backend
       imagePullSecrets:
         - name: nexus-pull-secret
       containers:
+        - name: vault-agent
+          image: hashicorp/vault:1.17
+          args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.jeeb.svc.cluster.local:8200"
+          volumeMounts:
+            - name: vault-config
+              mountPath: /vault/config
+            - name: vault-secrets
+              mountPath: /app/env
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - IPC_LOCK
+
         - name: backend
           image: localhost:30050/jeeb/backend:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -f /app/env/.env.develop ]; do
+                echo "waiting for vault-agent to render .env.develop..."
+                sleep 2
+              done
+              set -a
+              . /app/env/.env.develop
+              set +a
+              exec /app/jeeb
+          workingDir: /app
           ports:
             - containerPort: 8080
-          envFrom:
-            - configMapRef:
-                name: backend-config
-          env:
-            - name: MONGO_URI
-              valueFrom:
-                secretKeyRef:
-                  name: mongo-secret
-                  key: uri
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /app/env
           resources:
             requests:
               memory: 128Mi
@@ -42,3 +75,10 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
+
+      volumes:
+        - name: vault-config
+          configMap:
+            name: vault-agent-config
+        - name: vault-secrets
+          emptyDir: {}
