@@ -1,67 +1,150 @@
-# Jeeb
+# CLAUDE.md
 
-Personal management app: workouts, study, sleep, finance, calendar notifications.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Stack
-- Frontend: React | Backend: Go | DB: MongoDB | Auth: Keycloak | Infra: Kubernetes
+## Repository layout
 
-## Ports (NodePort)
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:30000 |
-| Backend API | http://localhost:30080 |
-| Keycloak | http://localhost:30081 |
-| Jenkins | http://localhost:30082 |
-| Nexus UI | http://localhost:30083 |
-| SonarQube | http://localhost:30090 |
-| MongoDB | mongodb://localhost:30017 |
-| Nexus Registry | localhost:30050 |
+This is a monorepo containing infrastructure only. Application code lives in separate folders (excluded from git):
 
-## Commands
+```
+jeeb/
+  k8s/          # All Kubernetes manifests — the primary concern of this repo
+  docs/         # Architecture, API reference, feature specs, guides
+  backend/      # Go API (not committed here — has its own repo)
+  frontend/     # React app (not committed here — has its own repo)
+  jenkins/      # CI/CD pipelines and setup scripts (not committed here)
+```
+
+## Kubernetes
+
+All services run in the `jeeb` namespace on Docker Desktop Kubernetes.
+
 ```bash
-# Apply all k8s manifests
+# Apply everything
 bash k8s/apply.sh
 
-# Check pods
+# Apply a single service
+kubectl apply -f k8s/app/backend/
+
+# Common operations
 kubectl get pods -n jeeb
-
-# Logs
 kubectl logs -n jeeb deployment/backend
-kubectl logs -n jeeb deployment/frontend
-
-# Restart
 kubectl rollout restart deployment/backend -n jeeb
+kubectl exec -it -n jeeb deployment/backend -- sh
 ```
 
-## Architecture (Clean/Hexagonal)
+### NodePort map
+
+| Service | NodePort | In-cluster host |
+|---------|----------|-----------------|
+| frontend | 30000 | `frontend.jeeb.svc.cluster.local:80` |
+| backend | 30080 | `backend.jeeb.svc.cluster.local:8080` |
+| keycloak | 30081 | `keycloak.jeeb.svc.cluster.local:8080` |
+| jenkins | 30082 | `jenkins.jeeb.svc.cluster.local:8080` |
+| nexus (ui) | 30083 | `nexus.jeeb.svc.cluster.local:8081` |
+| sonarqube | 30090 | `sonarqube.jeeb.svc.cluster.local:9000` |
+| mongodb | 30017 | `mongodb.jeeb.svc.cluster.local:27017` |
+| nexus (registry) | 30050 | `nexus.jeeb.svc.cluster.local:5000` |
+
+### k8s structure
+
 ```
-cmd/                 # Entry points
+k8s/
+  00-namespace.yaml
+  apply.sh
+  app/
+    secrets.yaml              # mongo-secret, keycloak-secret (base64)
+    backend/                  # configmap + deployment + service
+    frontend/                 # deployment + service
+    keycloak/                 # deployment + service
+    mongodb/                  # statefulset + service
+  jenkins/                    # deployment + pvc + rbac + service
+  nexus/                      # deployment + pvc + service
+  sonarqube/                  # deployment + pvc + service
+```
+
+Backend env vars come from `k8s/app/backend/configmap.yaml` (non-secret) and `mongo-secret` (MONGO_URI).
+
+## Backend (Go)
+
+```bash
+cd backend
+go test ./...                        # all tests
+go test ./internal/usecase/...       # single package
+go build ./cmd/api/...               # build binary
+go run ./cmd/api/main.go             # run locally (requires .env)
+```
+
+**Stack:** Go 1.22, Chi router, go-oidc/v3, mongo-driver, envconfig, validator/v10
+
+**Architecture — Clean/Hexagonal:**
+```
 internal/
-  domain/            # Entities, business rules
-  usecase/           # Application logic
-  port/in/           # Use case interfaces
-  port/out/          # External service interfaces
-  adapter/in/http/   # REST handlers
-  adapter/out/       # MongoDB, integrations
-pkg/                 # Shared utilities
+  domain/           # Pure structs + business rules, no imports
+  usecase/          # Orchestrates domain logic, depends on port interfaces
+  port/in/          # UseCase interfaces (called by handlers)
+  port/out/         # Repository + integration interfaces (implemented by adapters)
+  adapter/in/http/  # Chi handlers → call use cases via port/in
+  adapter/out/      # MongoDB repos + external integrations
+  config/           # envconfig structs loaded from environment
 ```
 
-## Key Interfaces
-- `CalendarPort` - Google Calendar, etc.
-- `NotificationPort` - LINE, Slack, Discord, Email
+Each feature (workout, study, sleep, finance, event) has its own files at every layer. Adding a feature means creating one file per layer and wiring it in `cmd/api/main.go`.
 
-## API
+All domain structs use `json:"snake_case"` tags. Handlers use `middleware.RespondJSON` for all responses.
+
+**Routes** (all except `/health` require Bearer token from Keycloak):
+- `GET /health`, `GET /me`
+- `/workouts`, `/study`, `/sleep`, `/finance`, `/events` — all have CRUD + `/stats`
+- `POST /events/:id/sync` — calendar sync
+
+## Frontend (React)
+
+```bash
+cd frontend
+npm run dev       # dev server → http://localhost:3000
+npm run build     # tsc + vite build
+npm run lint      # eslint
+npm run lint:fix  # eslint --fix
 ```
-POST   /events          # Create
-GET    /events          # List
-DELETE /events/:id      # Delete
-POST   /events/:id/sync # Sync to calendars
+
+**Stack:** React 19, TypeScript, Vite, TanStack Query v5, Tailwind CSS, Radix UI, keycloak-js, react-router-dom v7, Lucide React
+
+**Structure:**
+```
+src/
+  hooks/    # TanStack Query hooks — one file per feature (useWorkouts, useStudy, etc.)
+  pages/    # Full-page components (Dashboard, Workouts, Study, Sleep, Finance, Calendar, Settings)
+  components/
+  types/    # TypeScript interfaces matching backend snake_case JSON
+  lib/      # API client, utilities
+  store/    # Global state
 ```
 
-## Collections
-users, workouts, studies, sleep, finance, events, integrations
+All API calls go through hooks in `src/hooks/` — never fetch directly in components. Types in `src/types/` must match backend JSON field names exactly.
 
-## Conventions
-- Each feature (workout/study/sleep/finance) follows same pattern: domain → usecase → adapters
-- Go: standard error handling, context propagation
-- React: functional components, hooks
+**Design system:** Blue-600 primary, Slate neutrals, Lucide icons only (24px, 1.5px stroke), `rounded-lg shadow-sm` cards, fixed 240px left sidebar + fixed header layout.
+
+## CI/CD
+
+Jenkins polls GitHub (`H/5 * * * *`) and runs pipelines defined in `jenkins/backend/Jenkinsfile` and `jenkins/frontend/Jenkinsfile`. Each pipeline: test → SonarQube → Kaniko build → push to Nexus → `kubectl set image`.
+
+Bootstrap Jenkins from scratch:
+```bash
+go run jenkins/setup.go
+```
+
+Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
+
+## Slash commands
+
+| Command | Purpose |
+|---------|---------|
+| `/backend` | Go backend tasks with full arch context |
+| `/frontend` | React tasks with design system context |
+| `/k8s` | Kubernetes manifest work |
+| `/jenkins` | CI/CD pipeline help |
+| `/docs` | Write/update documentation |
+| `/status` | Check all pod health |
+| `/logs <svc>` | Tail service logs |
+| `/deploy <svc>` | Restart and watch a deployment |
