@@ -1,7 +1,6 @@
 # Subprojects — managed in their own repos
 backend/
 frontend/
-jenkins/
 
 # Environment secrets
 .env
