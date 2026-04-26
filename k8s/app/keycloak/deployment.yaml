@@ -43,9 +43,22 @@ spec:
             limits:
               memory: 1Gi
               cpu: 500m
+          volumeMounts:
+            - name: data
+              mountPath: /opt/keycloak/data
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health/ready
               port: 8080
             initialDelaySeconds: 60
             periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: keycloak-pvc
+        - name: realm-import
+          configMap:
+            name: keycloak-realm

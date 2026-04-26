@@ -12,13 +12,14 @@ const QL_TYPES = [
 function QLForm({ type, onClose }) {
   const info = QL_TYPES.find(t => t.id === type);
   const acc = info?.accent || C.primary;
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now()-86400000).toISOString().split('T')[0];
 
   // Workout form
-  const [wForm, setWForm] = React.useState({ type:'strength', duration:30, notes:'' });
+  const [wForm, setWForm] = React.useState({ date:today, type:'strength', duration:30, notes:'' });
   // Study form
-  const [sForm, setSForm] = React.useState({ subject:'', duration:60, notes:'' });
+  const [sForm, setSForm] = React.useState({ date:today, subject:'', duration:60, notes:'' });
   // Sleep form
-  const today = new Date().toISOString().split('T')[0];
   const [slForm, setSlForm] = React.useState({ date:today, bedtime:'23:00', wake:'07:00', quality:4 });
   // Finance form
   const [fForm, setFForm] = React.useState({ type:'expense', amount:'', category:'', date:today, notes:'' });
@@ -28,9 +29,38 @@ function QLForm({ type, onClose }) {
   const labelStyle = { display:'block', fontSize:11, color:C.text2, marginBottom:5,
     textTransform:'uppercase', letterSpacing:'0.06em' };
   const grid2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 };
+  const grid3 = { display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 };
 
   function Field({ label, children }) {
     return <div><label style={labelStyle}>{label}</label>{children}</div>;
+  }
+
+  // Date quick-pick chips
+  function DateChips({ value, onChange }) {
+    const opts = [
+      { label:'Today', val: today },
+      { label:'Yesterday', val: yesterday },
+      { label:'Custom', val: 'custom' },
+    ];
+    const isCustom = value !== today && value !== yesterday;
+    return (
+      <div>
+        <label style={labelStyle}>Date</label>
+        <div style={{ display:'flex', gap:6, marginBottom: isCustom ? 8 : 0 }}>
+          {opts.map(o => (
+            <button key={o.val} onClick={() => onChange(o.val === 'custom' ? yesterday : o.val)}
+              type="button" style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer',
+                background: (o.val==='custom' ? isCustom : value===o.val) ? acc : C.surface3,
+                color: (o.val==='custom' ? isCustom : value===o.val) ? '#fff' : C.text2,
+                border:`1px solid ${(o.val==='custom' ? isCustom : value===o.val) ? acc : C.border2}`,
+                transition:'all 0.15s' }}>{o.label}</button>
+          ))}
+        </div>
+        {isCustom && (
+          <input type="date" value={value} onChange={e => onChange(e.target.value)} style={inputStyle} />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -43,6 +73,7 @@ function QLForm({ type, onClose }) {
 
       {type === 'workout' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <DateChips value={wForm.date} onChange={v=>setWForm(f=>({...f,date:v}))} />
           <div style={grid2}>
             <Field label="Type">
               <select value={wForm.type} onChange={e=>setWForm(f=>({...f,type:e.target.value}))} style={inputStyle}>
@@ -65,6 +96,7 @@ function QLForm({ type, onClose }) {
 
       {type === 'study' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <DateChips value={sForm.date} onChange={v=>setSForm(f=>({...f,date:v}))} />
           <div style={grid2}>
             <Field label="Subject">
               <input placeholder="Mathematics" value={sForm.subject}
@@ -84,6 +116,7 @@ function QLForm({ type, onClose }) {
 
       {type === 'sleep' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <DateChips value={slForm.date} onChange={v=>setSlForm(f=>({...f,date:v}))} />
           <div style={grid2}>
             <Field label="Bedtime">
               <input type="time" value={slForm.bedtime}
@@ -123,16 +156,11 @@ function QLForm({ type, onClose }) {
                 onChange={e=>setFForm(f=>({...f,amount:e.target.value}))} style={inputStyle} />
             </Field>
           </div>
-          <div style={grid2}>
-            <Field label="Category">
-              <input placeholder="Food & Dining" value={fForm.category}
-                onChange={e=>setFForm(f=>({...f,category:e.target.value}))} style={inputStyle} />
-            </Field>
-            <Field label="Date">
-              <input type="date" value={fForm.date}
-                onChange={e=>setFForm(f=>({...f,date:e.target.value}))} style={inputStyle} />
-            </Field>
-          </div>
+          <Field label="Category">
+            <input placeholder="Food & Dining" value={fForm.category}
+              onChange={e=>setFForm(f=>({...f,category:e.target.value}))} style={inputStyle} />
+          </Field>
+          <DateChips value={fForm.date} onChange={v=>setFForm(f=>({...f,date:v}))} />
           <Field label="Notes">
             <input placeholder="Optional" value={fForm.notes}
               onChange={e=>setFForm(f=>({...f,notes:e.target.value}))} style={inputStyle} />
@@ -332,9 +360,7 @@ function Calendar() {
               );
             })}
           </div>
-          <div style={{ padding:'16px 20px', borderTop:`1px solid ${C.border}` }}>
-            <Btn color={acc} style={{ width:'100%', justifyContent:'center' }}>+ Add Event</Btn>
-          </div>
+          
         </Card>
       </div>
     </div>
@@ -536,7 +562,7 @@ function NavItem({item,active,onClick}){
   );
 }
 
-function Sidebar({page,navigate}){
+function Sidebar({page,navigate,onBulkLog}){
   return(
     <aside style={{ width:220,flexShrink:0,display:'flex',flexDirection:'column',gap:4,padding:'16px 12px',
       overflowY:'auto',borderRight:`1px solid ${C.border}`,background:C.surface }}>
@@ -549,6 +575,20 @@ function Sidebar({page,navigate}){
       </div>
       <div style={{ height:1,background:C.border,margin:'8px 0' }} />
       <NavItem item={{id:'settings',label:'Settings',emoji:'⚙️'}} active={page} onClick={navigate} />
+      {/* Bulk Log button */}
+      <div style={{ margin:'8px 0 4px', padding:'0 4px' }}>
+        <button onClick={onBulkLog} style={{
+          width:'100%', display:'flex', alignItems:'center', gap:9, padding:'9px 12px',
+          borderRadius:10, cursor:'pointer', transition:'all 0.15s', textAlign:'left',
+          background:`linear-gradient(135deg, ${C.primary}18, #a78bfa18)`,
+          border:`1px solid ${C.primary}30`,
+        }}
+          onMouseEnter={e=>{e.currentTarget.style.background=`linear-gradient(135deg, ${C.primary}28, #a78bfa28)`;}}
+          onMouseLeave={e=>{e.currentTarget.style.background=`linear-gradient(135deg, ${C.primary}18, #a78bfa18)`;}}>
+          <span style={{ fontSize:15 }}>📋</span>
+          <span style={{ fontSize:13, fontWeight:600, background:`linear-gradient(135deg, ${C.primary}, #a78bfa)`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Bulk Log</span>
+        </button>
+      </div>
       <div style={{ marginTop:'auto',padding:'12px 8px 4px' }}>
         <div style={{ display:'flex',alignItems:'center',gap:10 }}>
           <div style={{ width:32,height:32,borderRadius:10,background:`linear-gradient(135deg, ${C.primary}, #a78bfa)`,
@@ -613,23 +653,32 @@ function App(){
   const [page,setPage]=React.useState('dashboard');
   const [notifOpen,setNotifOpen]=React.useState(false);
   const [quickLog,setQuickLog]=React.useState({open:false,type:null});
+  const [bulkOpen,setBulkOpen]=React.useState(false);
   const PageComponent=PAGES[page]||Dashboard;
   const unreadCount=NOTIFICATIONS.filter(n=>n.unread).length;
 
   function openQuickLog(type=null){ setQuickLog({open:true,type}); }
   function closeQuickLog(){ setQuickLog({open:false,type:null}); }
 
+  // Expose bulk log opener globally for vanilla injector
+  React.useEffect(() => {
+    window.__openBulkLog = () => setBulkOpen(true);
+    document.addEventListener('jeeb:openBulkLog', () => setBulkOpen(true));
+    return () => { delete window.__openBulkLog; };
+  }, []);
+
   return(
     <div style={{ display:'flex',height:'100vh',flexDirection:'column',background:C.bg,overflow:'hidden' }}>
       <Header page={page} onNotifClick={()=>setNotifOpen(o=>!o)} notifOpen={notifOpen} unreadCount={unreadCount} />
       <div style={{ display:'flex',flex:1,overflow:'hidden' }}>
-        <Sidebar page={page} navigate={p=>{setPage(p);setNotifOpen(false);}} />
+        <Sidebar page={page} navigate={p=>{setPage(p);setNotifOpen(false);}} onBulkLog={()=>setBulkOpen(true)} />
         <main style={{ flex:1,overflowY:'auto',padding:'28px 32px',position:'relative' }}>
           <PageComponent navigate={setPage} openQuickLog={openQuickLog} />
         </main>
       </div>
       <NotificationsPanel open={notifOpen} onClose={()=>setNotifOpen(false)} />
       <QuickLogModal open={quickLog.open} initialType={quickLog.type} onClose={closeQuickLog} />
+      <BulkLogModal open={bulkOpen} onClose={()=>setBulkOpen(false)} />
       <FAB onClick={()=>openQuickLog(null)} />
     </div>
   );

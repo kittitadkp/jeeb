@@ -30,10 +30,305 @@
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel" src="jeeb-ui.jsx?v=3"></script>
+  <script type="text/babel" src="jeeb-ui.jsx?v=4"></script>
   <script type="text/babel" src="jeeb-pages1.jsx?v=4"></script>
   <script type="text/babel" src="jeeb-pages2.jsx?v=3"></script>
-  <script type="text/babel" src="jeeb-pages3.jsx?v=2"></script>
-  <script type="text/babel" src="jeeb-main.jsx?v=4"></script>
+  <script type="text/babel" src="jeeb-pages3.jsx?v=5"></script>
+  <script>window.BulkLogModal = function() { return null; };</script>
+  <script type="text/babel" src="jeeb-main.jsx?v=9"></script>
+  <script type="text/babel">
+  // ── Inline Bulk Log — not cached like external files ──────────────────────
+  const C2 = window.C;
+
+  const BTYPES = [
+    { id:'workout', emoji:'💪', label:'Workout',  accent:C2.sections.workouts },
+    { id:'study',   emoji:'📚', label:'Study',    accent:C2.sections.study },
+    { id:'sleep',   emoji:'😴', label:'Sleep',    accent:C2.sections.sleep },
+    { id:'finance', emoji:'💰', label:'Finance',  accent:C2.sections.finance },
+  ];
+
+  function pastDaysArr(n) {
+    return Array.from({length:n},(_,i)=>{
+      const d=new Date(); d.setDate(d.getDate()-i);
+      return d.toISOString().split('T')[0];
+    });
+  }
+
+  function fmtD(d) {
+    const t=new Date().toISOString().split('T')[0];
+    const y=new Date(Date.now()-86400000).toISOString().split('T')[0];
+    if(d===t) return 'Today'; if(d===y) return 'Yesterday';
+    return new Date(d+'T12:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  }
+
+  function mkRow(type, date) {
+    const id = Date.now()+Math.random();
+    if(type==='workout') return {id,date,on:true,wtype:'strength',duration:45,notes:''};
+    if(type==='study')   return {id,date,on:true,subject:'',duration:60,notes:''};
+    if(type==='sleep')   return {id,date,on:true,bedtime:'23:00',wake:'07:00',quality:4};
+    if(type==='finance') return {id,date,on:true,ftype:'expense',amount:'',category:'',notes:''};
+  }
+
+  const cs = {background:'transparent',border:`1px solid ${C2.border2}`,borderRadius:7,padding:'6px 9px',fontSize:12,color:C2.text,outline:'none',fontFamily:'inherit',width:'100%'};
+  const th = {fontSize:10,fontWeight:700,color:C2.text2,textTransform:'uppercase',letterSpacing:'0.06em',padding:'8px 8px',textAlign:'left',whiteSpace:'nowrap',background:C2.surface2};
+
+  function BulkRow({row, type, onChange, onDelete, acc}) {
+    const dur = React.useMemo(()=>{
+      if(type!=='sleep') return null;
+      try{
+        const[bh,bm]=row.bedtime.split(':').map(Number);
+        let[wh,wm]=row.wake.split(':').map(Number);
+        if(wh<bh) wh+=24;
+        const m=(wh*60+wm)-(bh*60+bm);
+        return m>0?`${Math.floor(m/60)}h ${m%60>0?m%60+'m':''}`.trim():'—';
+      }catch{return'—';}
+    },[row.bedtime,row.wake]);
+
+    return (
+      <tr style={{borderBottom:`1px solid ${C2.border}`,background:row.on?'transparent':C2.surface2+'80',opacity:row.on?1:0.4,transition:'all 0.15s'}}>
+        <td style={{padding:'5px 8px 5px 12px',width:32}}>
+          <input type="checkbox" checked={row.on} onChange={()=>onChange({on:!row.on})} style={{accentColor:acc,width:14,height:14,cursor:'pointer'}} />
+        </td>
+        <td style={{padding:'5px 8px',whiteSpace:'nowrap',minWidth:140}}>
+          <div style={{fontSize:11,fontWeight:600,color:row.on?acc:C2.text2,marginBottom:2}}>{fmtD(row.date)}</div>
+          <input type="date" value={row.date} onChange={e=>onChange({date:e.target.value})} style={{...cs,width:120,fontSize:10,padding:'3px 6px',background:C2.surface2}} />
+        </td>
+        {type==='workout'&&<>
+          <td style={{padding:'5px 6px'}}>
+            <select value={row.wtype} onChange={e=>onChange({wtype:e.target.value})} style={{...cs,width:100,appearance:'none'}}>
+              <option value="strength">Strength</option><option value="cardio">Cardio</option><option value="flexibility">Flexibility</option>
+            </select>
+          </td>
+          <td style={{padding:'5px 6px'}}><input type="number" min={1} value={row.duration} onChange={e=>onChange({duration:+e.target.value})} style={{...cs,width:70}} placeholder="min" /></td>
+          <td style={{padding:'5px 6px'}}><input value={row.notes} onChange={e=>onChange({notes:e.target.value})} style={{...cs,width:150}} placeholder="Notes" /></td>
+        </>}
+        {type==='study'&&<>
+          <td style={{padding:'5px 6px'}}><input value={row.subject} onChange={e=>onChange({subject:e.target.value})} style={{...cs,width:130}} placeholder="Subject" /></td>
+          <td style={{padding:'5px 6px'}}><input type="number" min={5} value={row.duration} onChange={e=>onChange({duration:+e.target.value})} style={{...cs,width:70}} placeholder="min" /></td>
+          <td style={{padding:'5px 6px'}}><input value={row.notes} onChange={e=>onChange({notes:e.target.value})} style={{...cs,width:150}} placeholder="Notes" /></td>
+        </>}
+        {type==='sleep'&&<>
+          <td style={{padding:'5px 6px'}}><input type="time" value={row.bedtime} onChange={e=>onChange({bedtime:e.target.value})} style={{...cs,width:90}} /></td>
+          <td style={{padding:'5px 6px'}}><input type="time" value={row.wake} onChange={e=>onChange({wake:e.target.value})} style={{...cs,width:90}} /></td>
+          <td style={{padding:'5px 8px'}}><span style={{fontSize:12,color:C2.text2}}>{dur}</span></td>
+          <td style={{padding:'5px 6px'}}>
+            <div style={{display:'flex',gap:3}}>
+              {[1,2,3,4,5].map(n=>(
+                <button key={n} onClick={()=>onChange({quality:n})} style={{width:24,height:24,borderRadius:5,fontSize:10,fontWeight:700,cursor:'pointer',background:row.quality===n?acc:C2.surface3,color:row.quality===n?'#fff':C2.text2,border:`1px solid ${row.quality===n?acc:C2.border2}`,transition:'all 0.1s'}}>{n}</button>
+              ))}
+            </div>
+          </td>
+        </>}
+        {type==='finance'&&<>
+          <td style={{padding:'5px 6px'}}>
+            <select value={row.ftype} onChange={e=>onChange({ftype:e.target.value})} style={{...cs,width:90,appearance:'none'}}>
+              <option value="expense">Expense</option><option value="income">Income</option>
+            </select>
+          </td>
+          <td style={{padding:'5px 6px'}}>
+            <div style={{position:'relative'}}>
+              <span style={{position:'absolute',left:7,top:'50%',transform:'translateY(-50%)',fontSize:11,color:C2.text2}}>$</span>
+              <input type="number" value={row.amount} onChange={e=>onChange({amount:e.target.value})} style={{...cs,paddingLeft:18,width:88}} placeholder="0.00" />
+            </div>
+          </td>
+          <td style={{padding:'5px 6px'}}><input value={row.category} onChange={e=>onChange({category:e.target.value})} style={{...cs,width:110}} placeholder="Category" /></td>
+          <td style={{padding:'5px 6px'}}><input value={row.notes} onChange={e=>onChange({notes:e.target.value})} style={{...cs,width:120}} placeholder="Notes" /></td>
+        </>}
+        <td style={{padding:'5px 8px',width:28}}>
+          <button onClick={onDelete} style={{color:C2.text3,fontSize:15,cursor:'pointer',background:'none',border:'none',lineHeight:1}}
+            onMouseEnter={e=>e.target.style.color='#f43f5e'} onMouseLeave={e=>e.target.style.color=C2.text3}>×</button>
+        </td>
+      </tr>
+    );
+  }
+
+  function InlineBulkModal({open, onClose, step, setStep, type, setType, rows, setRows, saved, setSaved}) {
+    if(!open) return null;
+    const info = BTYPES.find(t=>t.id===type);
+    const acc = info?.accent||C2.primary;
+    const sel = rows.filter(r=>r.on).length;
+    function pickType(t){ setType(t); setRows(pastDaysArr(7).map(d=>mkRow(t,d))); setStep('log'); }
+    function upd(id,p){ setRows(rs=>rs.map(r=>r.id===id?{...r,...p}:r)); }
+    function addRow(){ const d=new Date(); d.setDate(d.getDate()-rows.length); setRows(rs=>[...rs,mkRow(type,d.toISOString().split('T')[0])]); }
+
+    const colHeaders = () => {
+      if(type==='workout') return <><th style={th}>Type</th><th style={th}>Duration</th><th style={th}>Notes</th></>;
+      if(type==='study')   return <><th style={th}>Subject</th><th style={th}>Duration</th><th style={th}>Notes</th></>;
+      if(type==='sleep')   return <><th style={th}>Bedtime</th><th style={th}>Wake</th><th style={th}>Hours</th><th style={th}>Quality</th></>;
+      if(type==='finance') return <><th style={th}>Type</th><th style={th}>Amount</th><th style={th}>Category</th><th style={th}>Notes</th></>;
+    };
+
+    return (
+      <div style={{position:'fixed',inset:0,zIndex:300,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div onClick={onClose} style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)'}} />
+        <div style={{position:'relative',width:'100%',maxWidth:step==='pick'?460:920,margin:'0 16px',background:C2.surface,borderRadius:20,border:`1px solid ${C2.border2}`,boxShadow:'0 32px 100px rgba(0,0,0,0.7)',maxHeight:'90vh',display:'flex',flexDirection:'column',transition:'max-width 0.3s ease',animation:'qlIn 0.2s ease'}}>
+          {/* Header */}
+          <div style={{padding:'20px 24px 16px',borderBottom:`1px solid ${C2.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {step==='log'&&<button onClick={()=>setStep('pick')} style={{width:28,height:28,borderRadius:8,background:C2.surface2,border:`1px solid ${C2.border}`,color:C2.text2,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>}
+              <div>
+                <div style={{fontSize:16,fontWeight:700,color:C2.text,fontFamily:'Space Grotesk,sans-serif'}}>
+                  {step==='pick'?'📋 Bulk Log':`${info?.emoji} Bulk ${info?.label} Log`}
+                </div>
+                {step==='log'&&<div style={{fontSize:11,color:C2.text2,marginTop:2}}>{sel} of {rows.length} entries selected</div>}
+              </div>
+            </div>
+            <button onClick={onClose} style={{width:28,height:28,borderRadius:8,background:C2.surface2,border:`1px solid ${C2.border}`,color:C2.text2,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+          </div>
+
+          {/* Body */}
+          <div style={{flex:1,overflowY:'auto',padding:'20px 24px'}}>
+            {step==='pick'&&!saved&&(
+              <div>
+                <p style={{fontSize:13,color:C2.text2,marginBottom:20}}>Pick a category to bulk-log multiple entries — great for catching up on missed days.</p>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  {BTYPES.map(t=>(
+                    <button key={t.id} onClick={()=>pickType(t.id)}
+                      style={{padding:'20px 18px',borderRadius:14,border:`1px solid ${C2.border2}`,background:C2.surface2,cursor:'pointer',textAlign:'left',transition:'all 0.15s'}}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor=t.accent;e.currentTarget.style.background=`${t.accent}14`;}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=C2.border2;e.currentTarget.style.background=C2.surface2;}}>
+                      <div style={{fontSize:28,marginBottom:8}}>{t.emoji}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:C2.text}}>{t.label}</div>
+                      <div style={{fontSize:11,color:C2.text2,marginTop:3}}>Log multiple {t.label.toLowerCase()} entries</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {step==='log'&&!saved&&(
+              <div>
+                <div style={{display:'flex',gap:7,marginBottom:14,flexWrap:'wrap'}}>
+                  {[['☑ Select all',()=>setRows(rs=>rs.map(r=>({...r,on:true})))],
+                    ['☐ Deselect all',()=>setRows(rs=>rs.map(r=>({...r,on:false})))],
+                    ['↺ Last 7 days',()=>setRows(pastDaysArr(7).map(d=>mkRow(type,d)))],
+                    ['↺ Last 14 days',()=>setRows(pastDaysArr(14).map(d=>mkRow(type,d)))],
+                    ['+ Add row',addRow],
+                  ].map(([label,fn])=>(
+                    <button key={label} onClick={fn} style={{padding:'5px 12px',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',background:label.startsWith('+')?`${acc}18`:C2.surface2,border:`1px solid ${label.startsWith('+')?acc+'40':C2.border2}`,color:label.startsWith('+')?acc:C2.text2,fontFamily:'inherit'}}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{overflowX:'auto',borderRadius:12,border:`1px solid ${C2.border}`}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                    <thead>
+                      <tr>
+                        <th style={{...th,width:32,paddingLeft:12}}>
+                          <input type="checkbox" checked={rows.every(r=>r.on)} onChange={e=>setRows(rs=>rs.map(r=>({...r,on:e.target.checked})))} style={{accentColor:acc,width:14,height:14,cursor:'pointer'}} />
+                        </th>
+                        <th style={{...th,minWidth:140}}>Date</th>
+                        {colHeaders()}
+                        <th style={{...th,width:28}}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(row=>(
+                        <BulkRow key={row.id} row={row} type={type} acc={acc}
+                          onChange={p=>upd(row.id,p)}
+                          onDelete={()=>setRows(rs=>rs.filter(r=>r.id!==row.id))} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {saved&&(
+              <div style={{textAlign:'center',padding:'48px 0'}}>
+                <div style={{fontSize:52,marginBottom:16}}>✅</div>
+                <div style={{fontSize:18,fontWeight:700,color:C2.text,fontFamily:'Space Grotesk,sans-serif'}}>{sel} {info?.label} entr{sel===1?'y':'ies'} saved!</div>
+                <div style={{fontSize:13,color:C2.text2,marginTop:6}}>Your logs have been added.</div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {step==='log'&&!saved&&(
+            <div style={{padding:'16px 24px',borderTop:`1px solid ${C2.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+              <span style={{fontSize:12,color:C2.text2}}>{sel===0?'Select at least one row':`Saving ${sel} entr${sel===1?'y':'ies'}`}</span>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={onClose} style={{padding:'7px 16px',borderRadius:9,fontSize:13,fontWeight:600,cursor:'pointer',background:'transparent',border:`1px solid ${C2.border2}`,color:C2.text2,fontFamily:'inherit'}}>Cancel</button>
+                <button onClick={()=>{if(sel>0){setSaved(true);setTimeout(onClose,1500);}}} disabled={sel===0}
+                  style={{padding:'7px 18px',borderRadius:9,fontSize:13,fontWeight:600,cursor:sel===0?'not-allowed':'pointer',background:acc,border:'none',color:'#fff',opacity:sel===0?0.5:1,fontFamily:'inherit',transition:'all 0.15s'}}>
+                  💾 Save {sel} {sel===1?'Entry':'Entries'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Mount as separate React root — guarded against double mount
+  if (!window.__bulkRootMounted) {
+    window.__bulkRootMounted = true;
+
+    function BulkRoot() {
+      const [open, setOpen] = React.useState(false);
+      const [step, setStep] = React.useState('pick');
+      const [type, setType] = React.useState(null);
+      const [rows, setRows] = React.useState([]);
+      const [saved, setSaved] = React.useState(false);
+
+      function handleClose() {
+        setOpen(false);
+        setTimeout(()=>{ setStep('pick'); setType(null); setRows([]); setSaved(false); }, 250);
+      }
+      React.useEffect(()=>{
+        window.__openBulkLog = ()=>setOpen(true);
+
+        function inject() {
+          const aside = document.querySelector('aside');
+          if (!aside) return;
+          // Remove any cached React-rendered Bulk Log wrappers (not our injected one)
+          [...aside.children].forEach(child => {
+            if (!child.getAttribute('data-bulk-btn') &&
+                child.textContent.includes('Bulk Log') &&
+                child !== aside.lastElementChild) {
+              child.remove();
+            }
+          });
+          if (aside.querySelector('[data-bulk-btn]')) return;
+          const last = aside.lastElementChild;
+          const sep = document.createElement('div');
+          sep.setAttribute('data-bulk-sep','1');
+          sep.style.cssText='height:1px;background:rgba(255,255,255,0.07);margin:6px 8px';
+          const wrap = document.createElement('div');
+          wrap.setAttribute('data-bulk-btn','1');
+          wrap.style.cssText='padding:0 4px;margin-bottom:4px';
+          const btn = document.createElement('button');
+          btn.setAttribute('data-bulk-trigger','1');
+          btn.style.cssText='width:100%;display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,rgba(124,110,245,0.12),rgba(167,139,250,0.12));border:1px solid rgba(124,110,245,0.28);transition:all 0.15s';
+          btn.innerHTML='<span style="font-size:15px">📋</span><span style="font-size:13px;font-weight:600;background:linear-gradient(135deg,#7c6ef5,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Bulk Log</span>';
+          btn.onmouseenter=()=>{btn.style.background='linear-gradient(135deg,rgba(124,110,245,0.24),rgba(167,139,250,0.24))';};
+          btn.onmouseleave=()=>{btn.style.background='linear-gradient(135deg,rgba(124,110,245,0.12),rgba(167,139,250,0.12))';};
+          btn.onclick=()=>{ window.__openBulkLog && window.__openBulkLog(); };
+          wrap.appendChild(btn);
+          if (last) { aside.insertBefore(sep, last); aside.insertBefore(wrap, last); }
+          else { aside.appendChild(sep); aside.appendChild(wrap); }
+        }
+
+        // Inject with retries — stops after button is stable
+        let tries = 0;
+        const iv = setInterval(()=>{
+          inject();
+          if (document.querySelector('[data-bulk-btn]') && ++tries > 3) clearInterval(iv);
+          else if (tries++ > 30) clearInterval(iv);
+        }, 600);
+
+        // Re-inject only on nav button clicks (not all clicks to avoid modal interference)
+        document.querySelector('aside')?.addEventListener('click', ()=>setTimeout(inject, 300));
+
+        return ()=>{ delete window.__openBulkLog; clearInterval(iv); };
+      },[]);
+      return React.createElement(InlineBulkModal,{open,onClose:handleClose,step,setStep,type,setType,rows,setRows,saved,setSaved});
+    }
+
+    const bulkPortal = document.createElement('div');
+    bulkPortal.id='bulk-portal';
+    document.body.appendChild(bulkPortal);
+    ReactDOM.createRoot(bulkPortal).render(React.createElement(BulkRoot));
+  }
+  </script>
 </body>
 </html>

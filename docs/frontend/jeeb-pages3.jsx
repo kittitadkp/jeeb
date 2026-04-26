@@ -13,16 +13,25 @@ const GOAL_CATS = [
   { id:'custom',  emoji:'🎯', label:'Custom',  accent:C.primary },
 ];
 
+const today0 = new Date().toISOString().split('T')[0];
+const wkStart = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0]; })();
+const moStart = today0.slice(0,8) + '01';
+const yrStart = today0.slice(0,4) + '-01-01';
+
 const INIT_GOALS = [
-  { id:1, emoji:'💪', title:'Workouts per week', cat:'workout', current:4, target:5, unit:'sessions', reverse:false },
-  { id:2, emoji:'📚', title:'Study hours per week', cat:'study', current:14.5, target:20, unit:'hours', reverse:false },
-  { id:3, emoji:'😴', title:'Average sleep', cat:'sleep', current:7.2, target:8, unit:'hours', reverse:false },
-  { id:4, emoji:'💰', title:'Monthly spending limit', cat:'finance', current:2840, target:3000, unit:'$', reverse:true },
-  { id:5, emoji:'🏃', title:'Weekly running distance', cat:'workout', current:12, target:20, unit:'km', reverse:false },
+  { id:1, emoji:'💪', title:'Workouts per week', cat:'workout', current:4, target:5, unit:'sessions', reverse:false, periodType:'week',  dateFrom:wkStart, dateTo:today0 },
+  { id:2, emoji:'📚', title:'Study hours per week', cat:'study', current:14.5, target:20, unit:'hours', reverse:false, periodType:'week',  dateFrom:wkStart, dateTo:today0 },
+  { id:3, emoji:'😴', title:'Average sleep', cat:'sleep', current:7.2, target:8, unit:'hours', reverse:false, periodType:'month', dateFrom:moStart, dateTo:today0 },
+  { id:4, emoji:'💰', title:'Monthly spending limit', cat:'finance', current:2840, target:3000, unit:'$', reverse:true, periodType:'month', dateFrom:moStart, dateTo:today0 },
+  { id:5, emoji:'🏃', title:'Weekly running distance', cat:'workout', current:12, target:20, unit:'km', reverse:false, periodType:'week',  dateFrom:wkStart, dateTo:today0 },
 ];
 
 function GoalFormModal({ open, goal, onClose, onSave }) {
-  const blank = { emoji:'🎯', title:'', cat:'custom', current:'', target:'', unit:'', reverse:false };
+  const today = new Date().toISOString().split('T')[0];
+  const thisWeekStart = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0]; })();
+  const thisMonthStart = new Date().toISOString().slice(0,8) + '01';
+
+  const blank = { emoji:'🎯', title:'', cat:'custom', current:'', target:'', unit:'', reverse:false, periodType:'week', dateFrom: thisWeekStart, dateTo: today };
   const [form, setForm] = React.useState(goal || blank);
   React.useEffect(() => { setForm(goal || blank); }, [open]);
   if (!open) return null;
@@ -30,6 +39,22 @@ function GoalFormModal({ open, goal, onClose, onSave }) {
   const catInfo = GOAL_CATS.find(c => c.id === form.cat) || GOAL_CATS[4];
   const inputSt = { width:'100%', background:C.surface3, border:`1px solid ${C.border2}`, borderRadius:9, padding:'9px 12px', fontSize:13, color:C.text, outline:'none', fontFamily:'inherit' };
   const labelSt = { display:'block', fontSize:11, color:C.text2, marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' };
+
+  const PERIOD_PRESETS = [
+    { id:'day',   label:'Today',      from: today,          to: today },
+    { id:'week',  label:'This week',  from: thisWeekStart,  to: today },
+    { id:'month', label:'This month', from: thisMonthStart, to: today },
+    { id:'year',  label:'This year',  from: today.slice(0,4)+'-01-01', to: today },
+    { id:'custom',label:'Custom',     from: null,           to: null },
+  ];
+
+  function setPeriod(p) {
+    if (p.from) set('dateFrom')(p.from);
+    if (p.to) set('dateTo')(p.to);
+    set('periodType')(p.id);
+  }
+
+  const isCustom = form.periodType === 'custom';
   return (
     <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)' }} />
@@ -62,6 +87,37 @@ function GoalFormModal({ open, goal, onClose, onSave }) {
                 </button>
               ))}
             </div>
+          </div>
+          <div>
+            <label style={labelSt}>Period</label>
+            <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+              {PERIOD_PRESETS.map(p => (
+                <button key={p.id} onClick={()=>setPeriod(p)} style={{
+                  padding:'5px 11px', borderRadius:16, fontSize:11, fontWeight:600, cursor:'pointer',
+                  background: form.periodType===p.id ? catInfo.accent : C.surface2,
+                  color: form.periodType===p.id ? '#fff' : C.text2,
+                  border:`1px solid ${form.periodType===p.id ? catInfo.accent : C.border2}`,
+                  transition:'all 0.15s'
+                }}>{p.label}</button>
+              ))}
+            </div>
+            {isCustom && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:8 }}>
+                <div>
+                  <label style={{...labelSt, marginBottom:3}}>From</label>
+                  <input type="date" value={form.dateFrom} onChange={e=>set('dateFrom')(e.target.value)} style={inputSt} />
+                </div>
+                <div>
+                  <label style={{...labelSt, marginBottom:3}}>To</label>
+                  <input type="date" value={form.dateTo} onChange={e=>set('dateTo')(e.target.value)} style={inputSt} />
+                </div>
+              </div>
+            )}
+            {!isCustom && form.dateFrom && (
+              <div style={{ marginTop:6, fontSize:11, color:C.text2 }}>
+                📅 {new Date(form.dateFrom+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})} → {new Date(form.dateTo+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+              </div>
+            )}
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
             <div>
@@ -113,7 +169,16 @@ function GoalCard({ goal, onEdit, onDelete }) {
             <div style={{ width:38, height:38, borderRadius:10, background:`${acc}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{goal.emoji}</div>
             <div>
               <div style={{ fontSize:14, fontWeight:600, color:C.text }}>{goal.title}</div>
-              <Badge color={acc}>{catInfo.emoji} {catInfo.label}</Badge>
+              <div style={{ display:'flex', gap:6, marginTop:3, flexWrap:'wrap' }}>
+                <Badge color={acc}>{catInfo.emoji} {catInfo.label}</Badge>
+                {goal.periodType && (
+                  <Badge color={C.text3}>
+                    📅 {goal.periodType === 'custom'
+                      ? `${new Date((goal.dateFrom||'')+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${new Date((goal.dateTo||'')+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+                      : {day:'Today',week:'This week',month:'This month',year:'This year'}[goal.periodType] || goal.periodType}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
           <div style={{ display:'flex', gap:6, flexShrink:0, marginLeft:12 }}>
@@ -207,34 +272,100 @@ const INIT_EVENTS_TODO = [
   { id:8, done:false, title:'Review weekly goals',    date:'2026-04-30', time:'18:00', cat:'custom' },
 ];
 
+// App-linked extra fields per category
+function EventLinkedFields({ cat, linked, setLinked, inputSt, labelSt }) {
+  const grid2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 };
+  if (cat === 'workout') return (
+    <div style={{ padding:'14px', background:C.surface2, borderRadius:10, border:`1px solid ${C.sections.workouts}25` }}>
+      <div style={{ fontSize:11, fontWeight:600, color:C.sections.workouts, marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>💪 Linked Workout Log</div>
+      <div style={grid2}>
+        <div><label style={labelSt}>Type</label>
+          <select value={linked.wtype||'strength'} onChange={e=>setLinked(l=>({...l,wtype:e.target.value}))} style={inputSt}>
+            <option value="strength">Strength</option><option value="cardio">Cardio</option><option value="flexibility">Flexibility</option>
+          </select></div>
+        <div><label style={labelSt}>Duration (min)</label>
+          <input type="number" min={1} value={linked.dur||30} onChange={e=>setLinked(l=>({...l,dur:+e.target.value}))} style={inputSt} /></div>
+      </div>
+    </div>
+  );
+  if (cat === 'study') return (
+    <div style={{ padding:'14px', background:C.surface2, borderRadius:10, border:`1px solid ${C.sections.study}25` }}>
+      <div style={{ fontSize:11, fontWeight:600, color:C.sections.study, marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>📚 Linked Study Log</div>
+      <div style={grid2}>
+        <div><label style={labelSt}>Subject</label>
+          <input placeholder="Mathematics" value={linked.subject||''} onChange={e=>setLinked(l=>({...l,subject:e.target.value}))} style={inputSt} /></div>
+        <div><label style={labelSt}>Duration (min)</label>
+          <input type="number" min={5} value={linked.dur||60} onChange={e=>setLinked(l=>({...l,dur:+e.target.value}))} style={inputSt} /></div>
+      </div>
+    </div>
+  );
+  if (cat === 'sleep') return (
+    <div style={{ padding:'14px', background:C.surface2, borderRadius:10, border:`1px solid ${C.sections.sleep}25` }}>
+      <div style={{ fontSize:11, fontWeight:600, color:C.sections.sleep, marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>😴 Linked Sleep Log</div>
+      <div style={grid2}>
+        <div><label style={labelSt}>Bedtime</label>
+          <input type="time" value={linked.bedtime||'23:00'} onChange={e=>setLinked(l=>({...l,bedtime:e.target.value}))} style={inputSt} /></div>
+        <div><label style={labelSt}>Wake Up</label>
+          <input type="time" value={linked.wake||'07:00'} onChange={e=>setLinked(l=>({...l,wake:e.target.value}))} style={inputSt} /></div>
+      </div>
+    </div>
+  );
+  if (cat === 'finance') return (
+    <div style={{ padding:'14px', background:C.surface2, borderRadius:10, border:`1px solid ${C.sections.finance}25` }}>
+      <div style={{ fontSize:11, fontWeight:600, color:C.sections.finance, marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>💰 Linked Finance Log</div>
+      <div style={grid2}>
+        <div><label style={labelSt}>Type</label>
+          <select value={linked.ftype||'expense'} onChange={e=>setLinked(l=>({...l,ftype:e.target.value}))} style={inputSt}>
+            <option value="expense">Expense</option><option value="income">Income</option>
+          </select></div>
+        <div><label style={labelSt}>Amount ($)</label>
+          <input type="number" min="0.01" step="0.01" placeholder="0.00" value={linked.amount||''} onChange={e=>setLinked(l=>({...l,amount:e.target.value}))} style={inputSt} /></div>
+      </div>
+      <div style={{ marginTop:10 }}>
+        <label style={labelSt}>Category</label>
+        <input placeholder="Food & Dining" value={linked.cat||''} onChange={e=>setLinked(l=>({...l,cat:e.target.value}))} style={inputSt} />
+      </div>
+    </div>
+  );
+  return null;
+}
+
 function EventFormModal({ open, onClose, onSave }) {
   const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now()+86400000).toISOString().split('T')[0];
   const [form, setForm] = React.useState({ title:'', date:today, time:'', cat:'custom' });
-  React.useEffect(() => { if (open) setForm({ title:'', date:today, time:'', cat:'custom' }); }, [open]);
+  const [linked, setLinked] = React.useState({});
+  React.useEffect(() => { if (open) { setForm({ title:'', date:today, time:'', cat:'custom' }); setLinked({}); } }, [open]);
   if (!open) return null;
   const set = k => v => setForm(f => ({...f,[k]:v}));
   const catInfo = EV_CATS.find(c => c.id === form.cat) || EV_CATS[4];
   const inputSt = { width:'100%', background:C.surface3, border:`1px solid ${C.border2}`, borderRadius:9, padding:'9px 12px', fontSize:13, color:C.text, outline:'none', fontFamily:'inherit' };
   const labelSt = { display:'block', fontSize:11, color:C.text2, marginBottom:5, textTransform:'uppercase', letterSpacing:'0.06em' };
+
+  // date quick chips
+  const dateChips = [
+    { label:'Today',    val: today },
+    { label:'Tomorrow', val: tomorrow },
+    { label:'Custom',   val: 'custom' },
+  ];
+  const isCustomDate = form.date !== today && form.date !== tomorrow;
+
   return (
     <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)' }} />
-      <div style={{ position:'relative', width:'100%', maxWidth:420, margin:'0 16px', background:C.surface, borderRadius:18, border:`1px solid ${C.border2}`, boxShadow:'0 24px 80px rgba(0,0,0,0.6)', padding:'24px' }}>
+      <div style={{ position:'relative', width:'100%', maxWidth:460, margin:'0 16px', background:C.surface, borderRadius:18, border:`1px solid ${C.border2}`, boxShadow:'0 24px 80px rgba(0,0,0,0.6)', padding:'24px', maxHeight:'88vh', overflowY:'auto' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <span style={{ fontSize:15, fontWeight:700, color:C.text, fontFamily:'Space Grotesk,sans-serif' }}>New Event</span>
           <button onClick={onClose} style={{ width:28, height:28, borderRadius:8, background:C.surface2, border:`1px solid ${C.border}`, color:C.text2, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
         </div>
+
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div><label style={labelSt}>Title</label><input placeholder="What needs to be done?" value={form.title} onChange={e=>set('title')(e.target.value)} style={inputSt} /></div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <div><label style={labelSt}>Date</label><input type="date" value={form.date} onChange={e=>set('date')(e.target.value)} style={inputSt} /></div>
-            <div><label style={labelSt}>Time</label><input type="time" value={form.time} onChange={e=>set('time')(e.target.value)} style={inputSt} /></div>
-          </div>
+          {/* Category first */}
           <div>
             <label style={labelSt}>Category</label>
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
               {EV_CATS.map(c => (
-                <button key={c.id} onClick={()=>set('cat')(c.id)} style={{ padding:'5px 10px', borderRadius:16, fontSize:11, fontWeight:600, cursor:'pointer',
+                <button key={c.id} onClick={()=>{ set('cat')(c.id); setLinked({}); }} style={{ padding:'6px 12px', borderRadius:16, fontSize:12, fontWeight:600, cursor:'pointer',
                   background: form.cat===c.id ? c.accent : C.surface2,
                   color: form.cat===c.id ? '#fff' : C.text2,
                   border:`1px solid ${form.cat===c.id ? c.accent : C.border2}`, transition:'all 0.15s' }}>
@@ -243,10 +374,44 @@ function EventFormModal({ open, onClose, onSave }) {
               ))}
             </div>
           </div>
+
+          {/* Title */}
+          <div>
+            <label style={labelSt}>Title</label>
+            <input placeholder="What needs to be done?" value={form.title} onChange={e=>set('title')(e.target.value)} style={inputSt} />
+          </div>
+
+          {/* Date chips + time */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:10, alignItems:'end' }}>
+            <div>
+              <label style={labelSt}>Date</label>
+              <div style={{ display:'flex', gap:6, marginBottom: isCustomDate ? 8 : 0 }}>
+                {dateChips.map(o => (
+                  <button key={o.val} onClick={() => set('date')(o.val==='custom' ? tomorrow : o.val)} type="button"
+                    style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer',
+                      background: (o.val==='custom' ? isCustomDate : form.date===o.val) ? catInfo.accent : C.surface3,
+                      color: (o.val==='custom' ? isCustomDate : form.date===o.val) ? '#fff' : C.text2,
+                      border:`1px solid ${(o.val==='custom' ? isCustomDate : form.date===o.val) ? catInfo.accent : C.border2}`,
+                      transition:'all 0.15s' }}>{o.label}</button>
+                ))}
+              </div>
+              {isCustomDate && <input type="date" value={form.date} onChange={e=>set('date')(e.target.value)} style={inputSt} />}
+            </div>
+            <div>
+              <label style={labelSt}>Time</label>
+              <input type="time" value={form.time} onChange={e=>set('time')(e.target.value)} style={{...inputSt, width:120}} />
+            </div>
+          </div>
+
+          {/* Linked log fields */}
+          <EventLinkedFields cat={form.cat} linked={linked} setLinked={setLinked} inputSt={inputSt} labelSt={labelSt} />
         </div>
+
         <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:20, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
           <Btn outline color={C.text2} size="sm" onClick={onClose}>Cancel</Btn>
-          <Btn color={catInfo.accent} onClick={() => { if(form.title) { onSave({...form, id:Date.now(), done:false}); onClose(); } }}>Add Event</Btn>
+          <Btn color={catInfo.accent} onClick={() => { if(form.title) { onSave({...form, id:Date.now(), done:false, linked}); onClose(); } }}>
+            {form.cat !== 'custom' ? `Add + Log ${catInfo.label}` : 'Add Event'}
+          </Btn>
         </div>
       </div>
     </div>

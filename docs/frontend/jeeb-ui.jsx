@@ -144,26 +144,33 @@ function Sparkline({ data, color = C.primary, width = 100, height = 36 }) {
 function BarChart({ data, color = C.primary, height = 80 }) {
   const vals = data.map(d => d.value);
   const max = Math.max(...vals) || 1;
-  const barW = Math.max(14, Math.min(28, Math.floor(240 / data.length) - 6));
-  const gap = Math.max(4, Math.floor(barW * 0.28));
-  const w = data.length * (barW + gap) - gap;
+  const n = data.length;
+  // Fixed virtual coordinate space — SVG scales to fill container
+  const BAR_W = 28, GAP = 10;
+  const VW = n * (BAR_W + GAP) - GAP;
+  const VH = height + 20;
   return (
-    <svg width={w} height={height + 16} viewBox={`0 0 ${w} ${height + 16}`} style={{overflow:'visible',display:'block'}}>
-      {data.map((d, i) => {
-        const barH = Math.max(3, (d.value / max) * height);
-        const x = i * (barW + gap);
-        const y = height - barH;
-        const isLast = i === data.length - 1;
-        return (
-          <g key={i}>
-            <rect x={x} y={y} width={barW} height={barH} rx={4}
-              fill={isLast ? color : `${color}40`} style={{transition:'all 0.3s'}} />
-            <text x={x + barW/2} y={height + 14} textAnchor="middle"
-              fontSize="9" fill={C.text2} fontFamily="Inter,sans-serif">{d.label}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ width:'100%', overflowX:'hidden' }}>
+      <svg width="100%" height={VH} viewBox={`0 0 ${VW} ${VH}`}
+        preserveAspectRatio="none" style={{ display:'block' }}>
+        {data.map((d, i) => {
+          const barH = Math.max(3, (d.value / max) * height);
+          const x = i * (BAR_W + GAP);
+          const y = height - barH;
+          const isLast = i === n - 1;
+          // label font size in viewBox coords — stays legible after scale
+          const fs = Math.min(10, VW / n * 0.38);
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={BAR_W} height={barH} rx={5}
+                fill={isLast ? color : `${color}45`} style={{transition:'all 0.3s'}} />
+              <text x={x + BAR_W / 2} y={height + 15} textAnchor="middle"
+                fontSize={fs} fill={C.text2} fontFamily="Inter,sans-serif">{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
