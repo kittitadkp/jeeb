@@ -38,6 +38,32 @@ spec:
               value: "http://vault.jeeb.svc.cluster.local:8200"
             - name: SKIP_CHOWN
               value: "true"
+            - name: VAULT_UNSEAL_KEY_1
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key1
+            - name: VAULT_UNSEAL_KEY_2
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key2
+            - name: VAULT_UNSEAL_KEY_3
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key3
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    until vault status 2>&1 | grep -q "Initialized"; do sleep 2; done
+                    vault operator unseal "$VAULT_UNSEAL_KEY_1" || true
+                    vault operator unseal "$VAULT_UNSEAL_KEY_2" || true
+                    vault operator unseal "$VAULT_UNSEAL_KEY_3" || true
           volumeMounts:
             - name: config
               mountPath: /vault/config

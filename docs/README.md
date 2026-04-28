@@ -22,3 +22,13 @@ docs/
 - [Development Guide](guides/development.md)
 - [Deployment Guide](guides/deployment.md)
 - [Troubleshooting](troubleshooting/README.md)
+
+
+ Ask me to write a plan to a file, e.g.:                                                 
+   
+  ▎ "save this plan to docs/plans/feature-name.md"                                        
+                  
+  Then in a new session, tell me:
+
+  ▎ "continue the plan in docs/plans/feature-name.md"
+
