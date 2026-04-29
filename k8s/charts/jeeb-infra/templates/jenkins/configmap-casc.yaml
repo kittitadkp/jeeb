@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc
+  namespace: {{ .Values.namespace }}
+data:
+  jenkins.yaml: |
+    jenkins:
+      systemMessage: "Jeeb CI/CD"
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: "admin"
+              password: "${JENKINS_ADMIN_PASSWORD}"
+      authorizationStrategy:
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
+    credentials:
+      system:
+        domainCredentials:
+          - credentials:
+              - usernamePassword:
+                  scope: GLOBAL
+                  id: "github-creds"
+                  username: "${GITHUB_USER}"
+                  password: "${GITHUB_PAT}"
+                  description: "GitHub PAT"
+              - usernamePassword:
+                  scope: GLOBAL
+                  id: "nexus-docker-secret"
+                  username: "${NEXUS_USER}"
+                  password: "${NEXUS_PAT}"
+                  description: "Nexus Docker Registry"
+              - string:
+                  scope: GLOBAL
+                  id: "sonar-token"
+                  secret: "${SONAR_TOKEN}"
+                  description: "SonarQube API Token"
+    jobs:
+      - script: |
+          freeStyleJob('jeeb-seed') {
+            description('Seed job - creates all jeeb pipelines from jobs/seed.groovy')
+            scm {
+              git {
+                remote {
+                  url('{{ .Values.jenkins.jenkinsRepo }}')
+                  credentials('github-creds')
+                }
+                branches('*/main')
+                extensions { cleanBeforeCheckout() }
+              }
+            }
+            triggers {
+              scm('H/5 * * * *')
+            }
+            steps {
+              jobDsl {
+                targets('jobs/seed.groovy')
+                sandbox(false)
+                ignoreExisting(false)
+              }
+            }
+          }

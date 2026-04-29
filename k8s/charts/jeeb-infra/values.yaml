@@ -11,6 +11,33 @@ jenkins:
   storageSize: 5Gi
   nodePort: 30082
   agentNodePort: 30500
+  jenkinsRepo: "https://github.com/kittitadkp/jeeb-jenkins.git"
+  credentials:
+    adminPassword: "K@ng_12092540"
+    githubUser: "kittitadkp"
+    githubPat: "PLACEHOLDER_GITHUB_PAT"
+    nexusUser: "admin"
+    nexusPat: "admin123"
+    sonarToken: "squ_4cfe749941a6aea97dd29a3679dbd11caeae139b"
+  plugins:
+    - git
+    - git-client
+    - workflow-aggregator
+    - pipeline-model-definition
+    - workflow-scm-step
+    - workflow-cps
+    - workflow-job
+    - job-dsl
+    - configuration-as-code
+    - kubernetes
+    - pipeline-stage-view
+    - timestamper
+    - ansicolor
+    - build-timeout
+    - ws-cleanup
+    - sonar
+    - github
+    - github-branch-source
 
 nexus:
   image: sonatype/nexus3:latest

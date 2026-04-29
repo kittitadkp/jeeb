@@ -12,11 +12,36 @@ spec:
     metadata:
       labels:
         app: jenkins
+      annotations:
+        checksum/casc: {{ include (print $.Template.BasePath "/jenkins/configmap-casc.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/jenkins/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: jenkins
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
+      initContainers:
+        - name: install-plugins
+          image: {{ .Values.jenkins.image }}
+          command:
+            - jenkins-plugin-cli
+            - --plugins
+            - {{ join " " .Values.jenkins.plugins | quote }}
+            - --plugin-download-directory
+            - /var/jenkins_home/plugins
+          env:
+            - name: _JAVA_OPTIONS
+              value: "-Xmx384m"
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 250m
       containers:
         - name: jenkins
           image: {{ .Values.jenkins.image }}
@@ -26,9 +51,43 @@ spec:
           env:
             - name: JAVA_OPTS
               value: "-Djenkins.install.runSetupWizard=false -Dhudson.model.DirectoryBrowserSupport.CSP="
+            - name: CASC_JENKINS_CONFIG
+              value: /var/jenkins_casc
+            - name: JENKINS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: admin-password
+            - name: GITHUB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: github-user
+            - name: GITHUB_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: github-pat
+            - name: NEXUS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: nexus-user
+            - name: NEXUS_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: nexus-pat
+            - name: SONAR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-secret
+                  key: sonar-token
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home
+            - name: casc-config
+              mountPath: /var/jenkins_casc
           resources:
             requests:
               memory: 512Mi
@@ -46,3 +105,6 @@ spec:
         - name: jenkins-home
           persistentVolumeClaim:
             claimName: jenkins-pvc
+        - name: casc-config
+          configMap:
+            name: jenkins-casc

@@ -131,9 +131,10 @@ All API calls go through hooks in `src/hooks/` — never fetch directly in compo
 
 Jenkins polls GitHub (`H/5 * * * *`) and runs pipelines defined in `jenkins/backend/Jenkinsfile` and `jenkins/frontend/Jenkinsfile`. Each pipeline: test → SonarQube → Kaniko build → push to Nexus → `kubectl set image`.
 
-Bootstrap Jenkins from scratch:
+Jenkins is fully bootstrapped via the `jeeb-infra` Helm chart. Plugins, credentials, and jobs are configured declaratively — no manual setup step needed:
 ```bash
-go run jenkins/jenkin-go/main.go
+# Fill in credentials in values.yaml (or pass via --set), then:
+bash k8s/apply.sh
 ```
 
 Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
