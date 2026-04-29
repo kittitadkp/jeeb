@@ -1,0 +1,5 @@
+apiVersion: v2
+name: jeeb-app
+description: Jeeb application — MongoDB, Keycloak, Backend, Frontend (per environment)
+type: application
+version: 0.1.0

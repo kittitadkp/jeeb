@@ -9,7 +9,7 @@ data:
   READ_TIMEOUT: "10"
   WRITE_TIMEOUT: "10"
   MONGO_DATABASE: jeeb
-  MONGO_URI: mongodb://jeeb:jeeb123@mongo:30017/jeeb?authSource=admin
+  MONGO_URI: mongodb://jeeb:jeeb123@mongodb.jeeb.svc.cluster.local:27017/jeeb?authSource=admin
   KEYCLOAK_URL: http://keycloak.jeeb.svc.cluster.local:8080
   KEYCLOAK_REALM: jeeb
   KEYCLOAK_CLIENT_ID: jeeb-app

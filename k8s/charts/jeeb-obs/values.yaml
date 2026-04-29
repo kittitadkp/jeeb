@@ -1,0 +1,27 @@
+namespace: jeeb-obs
+
+ingress:
+  className: nginx
+
+prometheus:
+  image: prom/prometheus:v2.52.0
+  retention: 15d
+  storageSize: 5Gi
+  nodePort: 30093
+
+loki:
+  image: grafana/loki:3.0.0
+  storageSize: 5Gi
+
+tempo:
+  image: grafana/tempo:2.4.2
+  storageSize: 5Gi
+
+promtail:
+  image: grafana/promtail:3.0.0
+
+grafana:
+  image: grafana/grafana:11.0.0
+  storageSize: 1Gi
+  nodePort: 30092
+  adminPassword: admin123

@@ -1,34 +1,35 @@
 #!/bin/bash
 set -e
 
-echo "==> Creating namespace"
-kubectl apply -f k8s/00-namespace.yaml
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "==> Deploying Vault"
-kubectl apply -f k8s/vault/
+echo "==> Deploying jeeb-infra (Vault, Jenkins, Nexus, SonarQube)"
+helm upgrade --install jeeb-infra "$SCRIPT_DIR/charts/jeeb-infra" \
+  --namespace jeeb-infra --create-namespace
 
-echo "==> Deploying Jenkins"
-kubectl apply -f k8s/jenkins/
+echo "==> Deploying jeeb-app (dev)"
+helm upgrade --install jeeb-dev "$SCRIPT_DIR/charts/jeeb-app" \
+  --namespace jeeb-dev --create-namespace \
+  -f "$SCRIPT_DIR/charts/jeeb-app/values-dev.yaml"
 
-echo "==> Deploying SonarQube"
-kubectl apply -f k8s/sonarqube/
+echo "==> Deploying jeeb-app (uat)"
+helm upgrade --install jeeb-uat "$SCRIPT_DIR/charts/jeeb-app" \
+  --namespace jeeb-uat --create-namespace \
+  -f "$SCRIPT_DIR/charts/jeeb-app/values-uat.yaml"
 
-echo "==> Deploying Nexus"
-kubectl apply -f k8s/nexus/
-
-echo "==> Deploying App (MongoDB, Keycloak, Backend, Frontend)"
-kubectl apply -f k8s/app/secrets.yaml
-kubectl apply -f k8s/app/mongodb/
-kubectl apply -f k8s/app/keycloak/
-kubectl apply -f k8s/app/backend/
-kubectl apply -f k8s/app/frontend/
+echo "==> Deploying jeeb-obs (Prometheus, Loki, Tempo, Grafana)"
+helm upgrade --install jeeb-obs "$SCRIPT_DIR/charts/jeeb-obs" \
+  --namespace jeeb-obs --create-namespace
 
 echo ""
-echo "All resources applied. Access:"
-echo "  Jenkins    http://localhost:30082"
-echo "  SonarQube  http://localhost:30090"
-echo "  Nexus      http://localhost:30083"
-echo "  Backend    http://localhost:30080"
-echo "  Frontend   http://localhost:30000"
-echo "  Keycloak   http://localhost:30081"
-echo "  Vault      http://localhost:30091"
+echo "All releases applied. Access:"
+echo "  Jenkins    http://jenkins.jeeb.local  (NodePort: http://localhost:30082)"
+echo "  SonarQube  http://sonarqube.jeeb.local (NodePort: http://localhost:30090)"
+echo "  Nexus      http://nexus.jeeb.local    (NodePort: http://localhost:30083)"
+echo "  Vault      http://vault.jeeb.local    (NodePort: http://localhost:30091)"
+echo "  Dev app    http://jeeb-dev.local"
+echo "  UAT app    http://jeeb-uat.local"
+echo "  Grafana    http://grafana.jeeb.local  (NodePort: http://localhost:30092)"
+echo "  Prometheus http://localhost:30093"
+echo ""
+echo "  helm list -A   to see all releases"

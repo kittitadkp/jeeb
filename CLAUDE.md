@@ -138,6 +138,12 @@ go run jenkins/jenkin-go/main.go
 
 Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
 
+## Plan progress tracking
+
+When working from a plan file in `.claude/plans/`, mark each step complete as you finish it by updating `[ ]` to `[x]` in the file. Do this immediately after each step succeeds — not at the end. This lets the plan survive context resets and session restarts.
+
+If a step is partially done or blocked, mark it `[-]` and add a one-line note explaining why.
+
 ## Slash commands
 
 | Command | Purpose |

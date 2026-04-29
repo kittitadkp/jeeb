@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: {{ .Values.global.namespace }}
+data:
+  realm-jeeb.json: |
+{{ .Files.Get "files/realm-jeeb.json" | indent 4 }}

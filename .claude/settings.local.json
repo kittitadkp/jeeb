@@ -58,7 +58,14 @@
       "Bash(python3 -c \"import gzip; open\\('design.html','wb'\\).write\\(gzip.decompress\\(open\\('C:/Users/kitti/.claude/projects/D--personal-jeeb/f2697fe7-1f70-4963-b035-19e408bfe16b/tool-results/webfetch-1777292379209-nof9ux.bin','rb'\\).read\\(\\)\\)\\)\")",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\kitti\\\\.claude\\\\projects\\\\D--personal-jeeb\\\\f2697fe7-1f70-4963-b035-19e408bfe16b\\\\tool-results\\\\extracted\" -Recurse -File | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\kitti\\\\.claude\\\\projects\\\\D--personal-jeeb\\\\f2697fe7-1f70-4963-b035-19e408bfe16b\\\\tool-results\\\\extracted\\\\\",\"\"\\) })",
       "PowerShell(kubectl exec *)",
-      "Bash(git -C . status --short)"
+      "Bash(git -C . status --short)",
+      "Bash(awk '{print $2}')",
+      "Bash(helm repo *)",
+      "Bash(helm upgrade *)",
+      "Bash(helm template *)",
+      "Bash(helm lint *)",
+      "Bash(helm list *)",
+      "Bash(kubectl wait *)"
     ]
   },
   "mcpServers": {

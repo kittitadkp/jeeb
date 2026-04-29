@@ -1,10 +1,11 @@
+{{- $envFile := .Values.backend.vault.envFile -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: jeeb
+  namespace: {{ .Values.global.namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.backend.replicas }}
   selector:
     matchLabels:
       app: backend
@@ -12,19 +13,23 @@ spec:
     metadata:
       labels:
         app: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: backend
       imagePullSecrets:
         - name: nexus-pull-secret
       containers:
         - name: vault-agent
-          image: hashicorp/vault:1.17
+          image: {{ .Values.backend.vaultImage }}
           args:
             - agent
             - -config=/vault/config/agent.hcl
           env:
             - name: VAULT_ADDR
-              value: "http://vault.jeeb.svc.cluster.local:8200"
+              value: {{ .Values.infra.vaultAddr | quote }}
           volumeMounts:
             - name: vault-config
               mountPath: /vault/config
@@ -44,19 +49,22 @@ spec:
                 - IPC_LOCK
 
         - name: backend
-          image: localhost:30050/jeeb/backend:latest
+          image: {{ .Values.global.imageRegistry }}/jeeb/backend:{{ .Values.global.imageTag }}
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /app/env/.env.develop ]; do
-                echo "waiting for vault-agent to render .env.develop..."
+              until [ -f /app/env/{{ $envFile }} ]; do
+                echo "waiting for vault-agent to render {{ $envFile }}..."
                 sleep 2
               done
               set -a
-              . /app/env/.env.develop
+              . /app/env/{{ $envFile }}
               set +a
               exec /app/jeeb
           workingDir: /app
+          envFrom:
+            - configMapRef:
+                name: backend-config
           ports:
             - containerPort: 8080
           volumeMounts:

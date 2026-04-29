@@ -1,0 +1,18 @@
+global:
+  env: dev
+  namespace: jeeb-dev
+  domain: jeeb-dev.local
+  imageTag: latest
+
+keycloak:
+  hostnameUrl: http://auth.jeeb-dev.local
+
+backend:
+  vault:
+    path: secret/data/jeeb/backend/develop
+    envFile: .env.develop
+
+frontend:
+  vault:
+    path: secret/data/jeeb/frontend/develop
+    envFile: .env.develop

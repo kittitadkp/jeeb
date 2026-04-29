@@ -1,0 +1,53 @@
+global:
+  env: dev
+  namespace: jeeb-dev
+  domain: jeeb-dev.local
+  imageRegistry: localhost:30050
+  imageTag: latest
+  serviceType: NodePort
+
+ingress:
+  className: nginx
+
+mongodb:
+  image: mongo:7
+  storageSize: 5Gi
+  nodePort: 30017
+  database: jeeb
+  credentials:
+    username: jeeb
+    password: jeeb123
+
+keycloak:
+  image: quay.io/keycloak/keycloak:24.0
+  storageSize: 1Gi
+  nodePort: 30081
+  hostnameUrl: http://auth.jeeb-dev.local
+  credentials:
+    adminUser: admin
+    adminPassword: admin123
+
+backend:
+  replicas: 1
+  nodePort: 30080
+  vaultImage: hashicorp/vault:1.17
+  vault:
+    path: secret/data/jeeb/backend/develop
+    envFile: .env.develop
+    role: backend
+
+frontend:
+  replicas: 1
+  nodePort: 30000
+  vaultImage: hashicorp/vault:1.17
+  vault:
+    path: secret/data/jeeb/frontend/develop
+    envFile: .env.develop
+    role: frontend
+
+infra:
+  vaultAddr: "http://vault.jeeb-infra.svc.cluster.local:8200"
+
+nexus:
+  # base64-encoded dockerconfigjson for localhost:30050 (admin:K@ng_120=2540)
+  dockerConfigJson: eyJhdXRocyI6eyJsb2NhbGhvc3Q6MzAwNTAiOnsiYXV0aCI6IllXUnRhVzQ2UzBCdVoxOHhNakE5TWpVME1BPT0ifX19

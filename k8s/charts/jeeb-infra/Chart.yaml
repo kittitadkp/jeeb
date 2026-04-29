@@ -1,0 +1,5 @@
+apiVersion: v2
+name: jeeb-infra
+description: Shared CI/CD infrastructure — Vault, Jenkins, Nexus, SonarQube
+type: application
+version: 0.1.0

@@ -1,0 +1,42 @@
+{{- $envFile := .Values.frontend.vault.envFile -}}
+{{- $tplFile := trimPrefix "." $envFile | replace "." "-" | printf "%s.tpl" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-config-frontend
+  namespace: {{ .Values.global.namespace }}
+data:
+  agent.hcl: |
+    vault {
+      address = "{{ .Values.infra.vaultAddr }}"
+    }
+
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role = "{{ .Values.frontend.vault.role }}"
+        }
+      }
+
+      sink "file" {
+        config = {
+          path = "/app/env/.vault-token"
+        }
+      }
+    }
+
+    template {
+      source      = "/vault/config/{{ $tplFile }}"
+      destination = "/app/env/{{ $envFile }}"
+      perms       = "0640"
+    }
+
+  {{ $tplFile }}: |
+    {{ "{{" }}- with secret "{{ .Values.frontend.vault.path }}" -{{ "}}" }}
+    APP_ENV={{ .Values.global.env }}
+    VITE_KEYCLOAK_URL={{ "{{" }} .Data.data.VITE_KEYCLOAK_URL {{ "}}" }}
+    VITE_KEYCLOAK_REALM={{ "{{" }} .Data.data.VITE_KEYCLOAK_REALM {{ "}}" }}
+    VITE_KEYCLOAK_CLIENT_ID={{ "{{" }} .Data.data.VITE_KEYCLOAK_CLIENT_ID {{ "}}" }}
+    VITE_API_URL={{ "{{" }} .Data.data.VITE_API_URL {{ "}}" }}
+    {{ "{{" }}- end {{ "}}" }}

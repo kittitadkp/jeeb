@@ -1,0 +1,32 @@
+namespace: jeeb-infra
+
+vault:
+  image: hashicorp/vault:1.17
+  storageSize: 2Gi
+  nodePort: 30091
+  clusterName: jeeb-infra
+
+jenkins:
+  image: jenkins/jenkins:lts-jdk17
+  storageSize: 5Gi
+  nodePort: 30082
+  agentNodePort: 30500
+
+nexus:
+  image: sonatype/nexus3:latest
+  storageSize: 10Gi
+  uiNodePort: 30083
+  registryNodePort: 30050
+
+sonarqube:
+  image: sonarqube:10-community
+  storageSize: 5Gi
+  nodePort: 30090
+
+ingress:
+  className: nginx
+  hosts:
+    vault: vault.jeeb.local
+    jenkins: jenkins.jeeb.local
+    nexus: nexus.jeeb.local
+    sonarqube: sonarqube.jeeb.local

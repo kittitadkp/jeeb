@@ -1,0 +1,19 @@
+global:
+  env: uat
+  namespace: jeeb-uat
+  domain: jeeb-uat.local
+  imageTag: "1.0.0"
+  serviceType: ClusterIP
+
+keycloak:
+  hostnameUrl: http://auth.jeeb-uat.local
+
+backend:
+  vault:
+    path: secret/data/jeeb/backend/uat
+    envFile: .env.uat
+
+frontend:
+  vault:
+    path: secret/data/jeeb/frontend/uat
+    envFile: .env.uat

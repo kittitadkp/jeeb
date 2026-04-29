@@ -63,6 +63,13 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
 
       volumes:
         - name: vault-config

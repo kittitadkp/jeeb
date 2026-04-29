@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "8080"
+  LOG_LEVEL: INFO
+  READ_TIMEOUT: "10"
+  WRITE_TIMEOUT: "10"
+  MONGO_DATABASE: {{ .Values.mongodb.database }}
+  MONGO_URI: "mongodb://{{ .Values.mongodb.credentials.username }}:{{ .Values.mongodb.credentials.password }}@mongodb.{{ .Values.global.namespace }}.svc.cluster.local:27017/{{ .Values.mongodb.database }}?authSource=admin"
+  KEYCLOAK_URL: "http://keycloak.{{ .Values.global.namespace }}.svc.cluster.local:8080"
+  KEYCLOAK_REALM: jeeb
+  KEYCLOAK_CLIENT_ID: jeeb-app
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.jeeb-obs.svc.cluster.local:4318"
+  OTEL_SERVICE_NAME: "jeeb-backend"

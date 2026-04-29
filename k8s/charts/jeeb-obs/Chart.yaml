@@ -1,0 +1,5 @@
+apiVersion: v2
+name: jeeb-obs
+description: Jeeb observability stack — Prometheus, Loki, Tempo, Promtail, Grafana
+type: application
+version: 0.1.0
