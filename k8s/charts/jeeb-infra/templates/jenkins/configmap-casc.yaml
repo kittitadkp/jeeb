@@ -7,6 +7,18 @@ data:
   jenkins.yaml: |
     jenkins:
       systemMessage: "Jeeb CI/CD"
+      clouds:
+        - kubernetes:
+            name: "kubernetes"
+            serverUrl: "https://kubernetes.default.svc"
+            namespace: "{{ .Values.namespace }}"
+            jenkinsUrl: "http://jenkins.{{ .Values.namespace }}.svc.cluster.local:8080"
+            jenkinsTunnel: "jenkins.{{ .Values.namespace }}.svc.cluster.local:50000"
+            connectTimeout: 5
+            readTimeout: 15
+            containerCapStr: "10"
+            retentionTimeout: 5
+            waitForPodSec: 600
       securityRealm:
         local:
           allowsSignup: false
@@ -37,6 +49,19 @@ data:
                   id: "sonar-token"
                   secret: "${SONAR_TOKEN}"
                   description: "SonarQube API Token"
+    unclassified:
+      globalLibraries:
+        libraries:
+          - name: "jeeb-jenkins"
+            defaultVersion: "main"
+            implicit: true
+            allowVersionOverride: false
+            retriever:
+              modernSCM:
+                scm:
+                  git:
+                    remote: "{{ .Values.jenkins.jenkinsRepo }}"
+                    credentialsId: "github-creds"
     security:
       globalJobDslSecurityConfiguration:
         useScriptSecurity: false
