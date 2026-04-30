@@ -33,9 +33,9 @@ jenkins:
   credentials:
     adminPassword: "K@ng_12092540"
     githubUser: "kittitadkp"
-    githubPat: "PLACEHOLDER_GITHUB_PAT"
+    githubPat: ""  # set via --set jenkins.credentials.githubPat=<token> at install time
     nexusUser: "admin"
-    nexusPat: "admin123"
+    nexusPat: "K@ng_120=2540"
     sonarToken: "squ_4cfe749941a6aea97dd29a3679dbd11caeae139b"
   plugins:
     - git
