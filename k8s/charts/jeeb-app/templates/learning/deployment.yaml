@@ -1,0 +1,99 @@
+{{- $envFile := .Values.learning.vault.envFile -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.learning.replicas }}
+  selector:
+    matchLabels:
+      app: learning
+  template:
+    metadata:
+      labels:
+        app: learning
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: learning
+      imagePullSecrets:
+        - name: nexus-pull-secret
+      containers:
+        - name: vault-agent
+          image: {{ .Values.learning.vaultImage }}
+          args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          env:
+            - name: VAULT_ADDR
+              value: {{ .Values.infra.vaultAddr | quote }}
+          volumeMounts:
+            - name: vault-config
+              mountPath: /vault/config
+            - name: vault-secrets
+              mountPath: /app/env
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - IPC_LOCK
+
+        - name: learning
+          image: {{ .Values.global.imageRegistry }}/jeeb/learning:{{ .Values.global.imageTag }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -f /app/env/{{ $envFile }} ]; do
+                echo "waiting for vault-agent to render {{ $envFile }}..."
+                sleep 2
+              done
+              set -a
+              . /app/env/{{ $envFile }}
+              set +a
+              exec /app/jeeb-learning
+          workingDir: /app
+          envFrom:
+            - configMapRef:
+                name: learning-config
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /app/env
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 500m
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+
+      volumes:
+        - name: vault-config
+          configMap:
+            name: learning-vault-agent-config
+        - name: vault-secrets
+          emptyDir: {}

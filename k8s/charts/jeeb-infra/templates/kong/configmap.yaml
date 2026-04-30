@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-config
+  namespace: {{ .Values.namespace }}
+data:
+  kong.yaml: |
+    _format_version: "3.0"
+
+    consumers:
+      - username: keycloak-jwt
+        jwt_secrets:
+          - algorithm: RS256
+            key: {{ .Values.kong.keycloakIssuer | quote }}
+            rsa_public_key: {{ .Values.kong.keycloakPublicKey | toJson }}
+
+    services:
+      - name: backend
+        url: http://backend.{{ .Values.kong.appNamespace }}.svc.cluster.local:8080
+        routes:
+          - name: backend-health
+            paths:
+              - /health
+            methods:
+              - GET
+            strip_path: false
+
+          - name: backend-api
+            paths:
+              - /api
+            strip_path: true
+            plugins:
+              - name: jwt
+                config:
+                  claims_to_verify:
+                    - exp
+                  key_claim_name: iss
+
+      - name: learning
+        url: http://learning.{{ .Values.kong.appNamespace }}.svc.cluster.local:8080
+        routes:
+          - name: learning-api
+            paths:
+              - /learning
+            strip_path: true
+            plugins:
+              - name: jwt
+                config:
+                  claims_to_verify:
+                    - exp
+                  key_claim_name: iss

@@ -35,17 +35,39 @@ kubectl exec -it -n jeeb deployment/backend -- sh
 
 ### NodePort map
 
+**jeeb-dev namespace**
+
 | Service | NodePort | In-cluster host |
 |---------|----------|-----------------|
-| frontend | 30000 | `frontend.jeeb.svc.cluster.local:80` |
-| backend | 30080 | `backend.jeeb.svc.cluster.local:8080` |
-| keycloak | 30081 | `keycloak.jeeb.svc.cluster.local:8080` |
-| jenkins | 30082 | `jenkins.jeeb.svc.cluster.local:8080` |
-| nexus (ui) | 30083 | `nexus.jeeb.svc.cluster.local:8081` |
-| sonarqube | 30090 | `sonarqube.jeeb.svc.cluster.local:9000` |
-| mongodb | 30017 | `mongodb.jeeb.svc.cluster.local:27017` |
-| nexus (registry) | 30050 | `nexus.jeeb.svc.cluster.local:5000` |
-| vault | 30091 | `vault.jeeb.svc.cluster.local:8200` |
+| frontend | 30000 | `frontend.jeeb-dev.svc.cluster.local:80` |
+| backend | 30080 | `backend.jeeb-dev.svc.cluster.local:8080` |
+| keycloak | 30081 | `keycloak.jeeb-dev.svc.cluster.local:8080` |
+| mongodb | 30017 | `mongodb.jeeb-dev.svc.cluster.local:27017` |
+| learning | 30086 | `learning.jeeb-dev.svc.cluster.local:8080` |
+
+**jeeb-infra namespace**
+
+| Service | NodePort | In-cluster host |
+|---------|----------|-----------------|
+| jenkins | 30082 | `jenkins.jeeb-infra.svc.cluster.local:8080` |
+| nexus (ui) | 30083 | `nexus.jeeb-infra.svc.cluster.local:8081` |
+| nexus (registry) | 30050 | `nexus.jeeb-infra.svc.cluster.local:5000` |
+| kong | 30088 | `kong.jeeb-infra.svc.cluster.local:8000` |
+| sonarqube | 30090 | `sonarqube.jeeb-infra.svc.cluster.local:9000` |
+| vault | 30091 | `vault.jeeb-infra.svc.cluster.local:8200` |
+
+**jeeb-obs namespace**
+
+| Service | NodePort | In-cluster host |
+|---------|----------|-----------------|
+| grafana | 30092 | `grafana.jeeb-obs.svc.cluster.local:3000` |
+| prometheus | 30093 | `prometheus.jeeb-obs.svc.cluster.local:9090` |
+
+**cattle-system namespace**
+
+| Service | NodePort | In-cluster host |
+|---------|----------|-----------------|
+| rancher | 30443 | `rancher.cattle-system.svc.cluster.local:443` |
 
 ### k8s structure
 

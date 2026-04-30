@@ -45,6 +45,16 @@ frontend:
     envFile: .env.develop
     role: frontend
 
+learning:
+  replicas: 1
+  nodePort: 30086
+  vaultImage: hashicorp/vault:1.17
+  database: jeeb_learning
+  vault:
+    path: secret/data/jeeb/learning/develop
+    envFile: .env.develop
+    role: learning
+
 infra:
   vaultAddr: "http://vault.jeeb-infra.svc.cluster.local:8200"
 

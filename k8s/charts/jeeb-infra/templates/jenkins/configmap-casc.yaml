@@ -37,6 +37,9 @@ data:
                   id: "sonar-token"
                   secret: "${SONAR_TOKEN}"
                   description: "SonarQube API Token"
+    security:
+      globalJobDslSecurityConfiguration:
+        useScriptSecurity: false
     jobs:
       - script: |
           freeStyleJob('jeeb-seed') {

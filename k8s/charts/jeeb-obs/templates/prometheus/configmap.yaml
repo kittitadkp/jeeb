@@ -16,12 +16,6 @@ data:
             labels:
               env: dev
 
-      - job_name: jeeb-backend-uat
-        static_configs:
-          - targets: ['backend.jeeb-uat.svc.cluster.local:8080']
-            labels:
-              env: uat
-
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod

@@ -13,7 +13,6 @@ data:
         ready
         hosts {
            10.102.227.221 jeeb-dev.local api.jeeb-dev.local auth.jeeb-dev.local
-           10.102.227.221 jeeb-uat.local api.jeeb-uat.local auth.jeeb-uat.local
            10.102.227.221 jenkins.jeeb.local nexus.jeeb.local sonarqube.jeeb.local vault.jeeb.local
            10.102.227.221 grafana.jeeb.local
            fallthrough

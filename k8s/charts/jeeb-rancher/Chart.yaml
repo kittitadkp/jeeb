@@ -1,0 +1,5 @@
+apiVersion: v2
+name: jeeb-rancher
+description: Rancher cluster management GUI — cert-manager + Rancher (cattle-system)
+type: application
+version: 0.1.0

@@ -19,8 +19,7 @@ data:
             "label": "Environment",
             "type": "custom",
             "options": [
-              {"text": "dev", "value": "dev"},
-              {"text": "uat", "value": "uat"}
+              {"text": "dev", "value": "dev"}
             ],
             "current": {"text": "dev", "value": "dev"}
           }

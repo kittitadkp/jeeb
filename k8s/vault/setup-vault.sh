@@ -1,10 +1,10 @@
 #!/bin/bash
-# One-time Vault configuration for the jeeb backend and frontend.
+# One-time Vault configuration for jeeb services (backend, frontend, learning).
 # Usage: VAULT_TOKEN=<root-token> bash k8s/vault/setup-vault.sh
 set -euo pipefail
 
 ROOT_TOKEN="${VAULT_TOKEN:?Set VAULT_TOKEN to your Vault root token (from vault-init.json)}"
-NS="jeeb"
+NS="jeeb-infra"
 POD="vault-0"
 
 # Run vault CLI inside the pod so it has cluster-internal access
@@ -24,8 +24,8 @@ v kv put secret/jeeb/backend/develop \
   READ_TIMEOUT=10 \
   WRITE_TIMEOUT=10 \
   MONGO_DATABASE=jeeb \
-  "MONGO_URI=mongodb://jeeb:jeeb123@mongodb.jeeb.svc.cluster.local:27017/jeeb?authSource=admin" \
-  "KEYCLOAK_URL=http://host.docker.internal:30081" \
+  "MONGO_URI=mongodb://jeeb:jeeb123@mongodb.jeeb-dev.svc.cluster.local:27017/jeeb?authSource=admin" \
+  "KEYCLOAK_URL=http://keycloak.jeeb-dev.svc.cluster.local:8080" \
   KEYCLOAK_REALM=jeeb \
   KEYCLOAK_CLIENT_ID=jeeb-app
 
@@ -35,6 +35,16 @@ v kv put secret/jeeb/frontend/develop \
   VITE_KEYCLOAK_REALM=jeeb \
   VITE_KEYCLOAK_CLIENT_ID=jeeb-app \
   "VITE_API_URL=http://localhost:30080"
+
+echo "==> Writing learning develop secrets"
+v kv put secret/jeeb/learning/develop \
+  PORT=8080 \
+  LOG_LEVEL=INFO \
+  MONGO_DATABASE=jeeb_learning \
+  "MONGO_URI=mongodb://jeeb:jeeb123@mongodb.jeeb-dev.svc.cluster.local:27017/jeeb_learning?authSource=admin" \
+  "KEYCLOAK_URL=http://keycloak.jeeb-dev.svc.cluster.local:8080" \
+  KEYCLOAK_REALM=jeeb \
+  KEYCLOAK_CLIENT_ID=jeeb-app
 
 echo "==> Enabling Kubernetes auth method"
 v auth enable kubernetes 2>/dev/null || echo "   already enabled"
@@ -53,7 +63,7 @@ POLICY
 echo "==> Creating Kubernetes auth role for backend"
 v write auth/kubernetes/role/backend \
   bound_service_account_names=backend \
-  bound_service_account_namespaces=jeeb \
+  bound_service_account_namespaces=jeeb-dev \
   policies=backend-policy \
   ttl=1h
 
@@ -67,15 +77,27 @@ POLICY
 echo "==> Creating Kubernetes auth role for frontend"
 v write auth/kubernetes/role/frontend \
   bound_service_account_names=frontend \
-  bound_service_account_namespaces=jeeb \
+  bound_service_account_namespaces=jeeb-dev \
   policies=frontend-policy \
   ttl=1h
 
+echo "==> Writing learning policy"
+v policy write learning-policy - << 'POLICY'
+path "secret/data/jeeb/learning/develop" {
+  capabilities = ["read"]
+}
+POLICY
+
+echo "==> Creating Kubernetes auth role for learning"
+v write auth/kubernetes/role/learning \
+  bound_service_account_names=learning \
+  bound_service_account_namespaces=jeeb-dev \
+  policies=learning-policy \
+  ttl=1h
+
 echo ""
-echo "Done. Vault is configured for backend and frontend."
+echo "Done. Vault is configured for backend, frontend, and learning."
 echo ""
 echo "Next steps:"
-echo "  kubectl apply -f k8s/app/backend/"
-echo "  kubectl apply -f k8s/app/frontend/"
-echo "  kubectl rollout status deployment/backend -n jeeb"
-echo "  kubectl rollout status deployment/frontend -n jeeb"
+echo "  bash k8s/apply.sh          to deploy all services"
+echo "  kubectl get pods -n jeeb-dev   to check status"

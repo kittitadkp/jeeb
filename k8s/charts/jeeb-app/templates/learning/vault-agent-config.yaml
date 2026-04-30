@@ -1,0 +1,47 @@
+{{- $envFile := .Values.learning.vault.envFile -}}
+{{- $tplFile := trimPrefix "." $envFile | replace "." "-" | printf "%s.tpl" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-vault-agent-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  agent.hcl: |
+    vault {
+      address = "{{ .Values.infra.vaultAddr }}"
+    }
+
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role = "{{ .Values.learning.vault.role }}"
+        }
+      }
+
+      sink "file" {
+        config = {
+          path = "/app/env/.vault-token"
+        }
+      }
+    }
+
+    template {
+      source      = "/vault/config/{{ $tplFile }}"
+      destination = "/app/env/{{ $envFile }}"
+      perms       = "0640"
+    }
+
+  {{ $tplFile }}: |
+    {{ "{{" }}- with secret "{{ .Values.learning.vault.path }}" -{{ "}}" }}
+    GO_ENV={{ .Values.global.env }}
+    PORT={{ "{{" }} .Data.data.PORT {{ "}}" }}
+    LOG_LEVEL={{ "{{" }} .Data.data.LOG_LEVEL {{ "}}" }}
+    READ_TIMEOUT={{ "{{" }} .Data.data.READ_TIMEOUT {{ "}}" }}
+    WRITE_TIMEOUT={{ "{{" }} .Data.data.WRITE_TIMEOUT {{ "}}" }}
+    MONGO_DATABASE={{ "{{" }} .Data.data.MONGO_DATABASE {{ "}}" }}
+    MONGO_URI={{ "{{" }} .Data.data.MONGO_URI {{ "}}" }}
+    KEYCLOAK_URL={{ "{{" }} .Data.data.KEYCLOAK_URL {{ "}}" }}
+    KEYCLOAK_REALM={{ "{{" }} .Data.data.KEYCLOAK_REALM {{ "}}" }}
+    KEYCLOAK_CLIENT_ID={{ "{{" }} .Data.data.KEYCLOAK_CLIENT_ID {{ "}}" }}
+    {{ "{{" }}- end {{ "}}" }}
