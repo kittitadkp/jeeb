@@ -2,6 +2,8 @@
 /backend/
 /frontend/
 /jenkins/
+/learning-frontend/
+/learning-backend/
 
 # Environment secrets
 .env

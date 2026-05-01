@@ -65,7 +65,9 @@
       "Bash(helm template *)",
       "Bash(helm lint *)",
       "Bash(helm list *)",
-      "Bash(kubectl wait *)"
+      "Bash(kubectl wait *)",
+      "Bash(bash k8s/apply.sh)",
+      "Bash(helm uninstall *)"
     ]
   },
   "mcpServers": {

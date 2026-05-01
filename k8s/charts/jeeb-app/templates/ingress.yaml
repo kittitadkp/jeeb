@@ -41,3 +41,14 @@ spec:
                 name: keycloak
                 port:
                   number: 8080
+
+    - host: learning.{{ .Values.global.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: learning
+                port:
+                  number: 8080

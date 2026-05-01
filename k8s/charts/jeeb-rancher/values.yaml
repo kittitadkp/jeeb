@@ -3,9 +3,9 @@ certManager:
   namespace: cert-manager
 
 rancher:
-  version: 2.9.3
+  version: 2.13.3
   namespace: cattle-system
-  hostname: rancher.jeeb-infra.local
+  hostname: rancher.jeeb.local
   tlsSource: rancher      # self-signed via cert-manager
   replicas: 1
   nodePort: 30443
