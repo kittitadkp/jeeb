@@ -1,0 +1,28 @@
+{{- $envFile := .Values.backend.vault.envFile -}}
+{{- $tplFile := trimPrefix "." $envFile | replace "." "-" | printf "%s.tpl" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-backend-vault-agent-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  agent.hcl: |
+    {{- include "jeeb-learning.vaultAgentHCL" (dict
+        "vaultAddr" .Values.infra.vaultAddr
+        "role"      .Values.backend.vault.role
+        "envFile"   $envFile
+        "tplFile"   $tplFile) | nindent 4 }}
+
+  {{ $tplFile }}: |
+    {{ "{{" }}- with secret "{{ .Values.backend.vault.path }}" -{{ "}}" }}
+    GO_ENV={{ .Values.global.env }}
+    PORT={{ "{{" }} .Data.data.PORT {{ "}}" }}
+    LOG_LEVEL={{ "{{" }} .Data.data.LOG_LEVEL {{ "}}" }}
+    READ_TIMEOUT={{ "{{" }} .Data.data.READ_TIMEOUT {{ "}}" }}
+    WRITE_TIMEOUT={{ "{{" }} .Data.data.WRITE_TIMEOUT {{ "}}" }}
+    MONGO_DATABASE={{ "{{" }} .Data.data.MONGO_DATABASE {{ "}}" }}
+    MONGO_URI={{ "{{" }} .Data.data.MONGO_URI {{ "}}" }}
+    KEYCLOAK_URL={{ "{{" }} .Data.data.KEYCLOAK_URL {{ "}}" }}
+    KEYCLOAK_REALM={{ "{{" }} .Data.data.KEYCLOAK_REALM {{ "}}" }}
+    KEYCLOAK_CLIENT_ID={{ "{{" }} .Data.data.KEYCLOAK_CLIENT_ID {{ "}}" }}
+    {{ "{{" }}- end {{ "}}" }}

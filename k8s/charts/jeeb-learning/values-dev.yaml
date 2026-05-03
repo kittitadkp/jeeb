@@ -1,0 +1,15 @@
+global:
+  env: dev
+  namespace: jeeb-dev
+  domain: jeeb-dev.local
+  imageTag: latest
+
+backend:
+  vault:
+    path: secret/data/jeeb/learning/backend/develop
+    envFile: .env.develop
+
+frontend:
+  vault:
+    path: secret/data/jeeb/learning/frontend/develop
+    envFile: .env.develop

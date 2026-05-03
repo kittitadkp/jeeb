@@ -1,3 +1,4 @@
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,7 +16,7 @@ data:
            10.102.227.221 jeeb-dev.local api.jeeb-dev.local auth.jeeb-dev.local learning.jeeb-dev.local
            10.102.227.221 jenkins.jeeb.local nexus.jeeb.local sonarqube.jeeb.local vault.jeeb.local
            10.102.227.221 grafana.jeeb.local
-           10.102.227.221 rancher.jeeb.local
+           10.102.227.221 rancher.jeeb-infra.local
            fallthrough
         }
         kubernetes cluster.local in-addr.arpa ip6.arpa {

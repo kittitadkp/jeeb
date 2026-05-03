@@ -1,0 +1,5 @@
+global:
+  namespace: jeeb-dev
+
+keycloak:
+  hostnameUrl: http://auth.jeeb-dev.local

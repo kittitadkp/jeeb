@@ -43,3 +43,6 @@ temp/
 *.bak
 
 .claude/settings.local.json
+
+# Local credentials — never commit
+credentials.md

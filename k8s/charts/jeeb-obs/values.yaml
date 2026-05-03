@@ -24,4 +24,4 @@ grafana:
   image: grafana/grafana:11.0.0
   storageSize: 1Gi
   nodePort: 30092
-  adminPassword: admin123
+  adminPassword: ""

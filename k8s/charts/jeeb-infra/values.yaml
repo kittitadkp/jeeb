@@ -6,17 +6,8 @@ kong:
   appNamespace: jeeb-dev
   # Token iss claim — must match exactly what Keycloak puts in the JWT.
   keycloakIssuer: "http://auth.jeeb-dev.local/realms/jeeb"
-  # RS256 public key in PEM format.
-  keycloakPublicKey: |
-    -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwti1NWxawKdVWz8JhjeE
-    I5yKznXNIqJwE/Pb3HbBNmLwkXuiR8egv3hUWkWs3Qkno4Kh3rpuplzvqg0R7lvo
-    q0jjGL56vjgOINZqJvG1AfbN+pRCT/QwZ4o/QxSY94l6kVv3a7D8doKTax3eGVfL
-    2WoWkUlxj9atIanIIqNAM2hVvYKo2xivyT7e7oxocA+exQBrQXaHeE1TSUlG5ljQ
-    aKsC/tGGhPSsmdUnKOUIUYpp0bsAEM7X4VVPJ0PngEum/wxY/rcbeB/y5eJQHMRv
-    IDB99ZvJ02tvYcKWJ5IXNSVp2ilDwAvDsOgwfGeIBgJP/RjcWwfNseRI2KJW8VR/
-    dQIDAQAB
-    -----END PUBLIC KEY-----
+  # RS256 public key in PEM format — set via credentials.yaml, injected by k8s-manager.
+  keycloakPublicKey: ""
 
 vault:
   image: hashicorp/vault:1.17
@@ -31,12 +22,12 @@ jenkins:
   agentNodePort: 30500
   jenkinsRepo: "https://github.com/kittitadkp/jeeb-jenkins.git"
   credentials:
-    adminPassword: "K@ng_12092540"
-    githubUser: "kittitadkp"
-    githubPat: ""  # set via --set jenkins.credentials.githubPat=<token> at install time
+    adminPassword: ""
+    githubUser: ""
+    githubPat: ""
     nexusUser: "admin"
-    nexusPat: "K@ng_120=2540"
-    sonarToken: "squ_4cfe749941a6aea97dd29a3679dbd11caeae139b"
+    nexusPat: ""
+    sonarToken: ""
   plugins:
     - git
     - git-client

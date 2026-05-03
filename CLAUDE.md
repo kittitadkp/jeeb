@@ -43,7 +43,8 @@ kubectl exec -it -n jeeb deployment/backend -- sh
 | backend | 30080 | `backend.jeeb-dev.svc.cluster.local:8080` |
 | keycloak | 30081 | `keycloak.jeeb-dev.svc.cluster.local:8080` |
 | mongodb | 30017 | `mongodb.jeeb-dev.svc.cluster.local:27017` |
-| learning | 30086 | `learning.jeeb-dev.svc.cluster.local:8080` |
+| learning-backend | 30086 | `learning-backend.jeeb-dev.svc.cluster.local:8080` |
+| learning-frontend | 30087 | `learning-frontend.jeeb-dev.svc.cluster.local:80` |
 
 **jeeb-infra namespace**
 
@@ -73,18 +74,18 @@ kubectl exec -it -n jeeb deployment/backend -- sh
 
 ```
 k8s/
-  00-namespace.yaml
-  apply.sh
-  app/
-    secrets.yaml              # mongo-secret, keycloak-secret (base64)
-    backend/                  # configmap + deployment + service
-    frontend/                 # deployment + service
-    keycloak/                 # deployment + service
-    mongodb/                  # statefulset + service
-  jenkins/                    # deployment + pvc + rbac + service
-  nexus/                      # deployment + pvc + service
-  sonarqube/                  # deployment + pvc + service
-  vault/                      # statefulset + pvc + configmap + rbac + service
+  apply.sh              # deploy all three charts
+  apply-dev.sh          # deploy jeeb-app only
+  apply-obs.sh          # deploy jeeb-obs only
+  apply-rancher.sh      # install cert-manager + Rancher via external Helm repos
+  coredns-patch.yaml    # kubectl apply to kube-system for in-cluster .local DNS
+  vault/
+    setup-vault.sh      # one-time Vault config (KV engine, policies, K8s auth roles)
+    store-unseal-keys.sh  # store Vault unseal keys in jeeb-infra secret for auto-unseal
+  charts/
+    jeeb-app/           # frontend, backend, learning, keycloak, mongodb (jeeb-dev ns)
+    jeeb-infra/         # jenkins, nexus, sonarqube, vault, kong (jeeb-infra ns)
+    jeeb-obs/           # prometheus, loki, tempo, grafana, promtail (jeeb-obs ns)
 ```
 
 Backend env vars come from `k8s/app/backend/configmap.yaml` (non-secret) and `mongo-secret` (MONGO_URI).
@@ -160,6 +161,14 @@ bash k8s/apply.sh
 ```
 
 Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
+
+## Troubleshooting docs
+
+Whenever a bug or infrastructure problem is fixed in this project, update `docs/troubleshooting/` before closing the task:
+
+- Pick the file matching the affected service (`keycloak.md`, `backend.md`, `frontend.md`, `mongodb.md`, `docker.md`) or create a new one if none fits.
+- Add a section with: **Symptoms**, **Root cause**, **Fix** (with exact commands), **Prevention**.
+- Do this automatically — do not wait for the user to ask.
 
 ## Plan progress tracking
 

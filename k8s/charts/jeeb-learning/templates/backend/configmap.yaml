@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-backend-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "8080"
+  LOG_LEVEL: INFO
+  READ_TIMEOUT: "10"
+  WRITE_TIMEOUT: "10"
+  MONGO_DATABASE: {{ .Values.backend.database }}
+  KEYCLOAK_URL: "http://{{ .Values.keycloak.host }}:8080"
+  KEYCLOAK_REALM: jeeb
+  KEYCLOAK_CLIENT_ID: jeeb-app
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.jeeb-obs.svc.cluster.local:4318"
+  OTEL_SERVICE_NAME: "jeeb-learning"
+  UPSTREAM_AUTH: "true"

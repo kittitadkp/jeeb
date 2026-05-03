@@ -1,0 +1,37 @@
+global:
+  env: dev
+  namespace: jeeb-dev
+  imageRegistry: localhost:30050
+  serviceType: NodePort
+
+ingress:
+  className: nginx
+  domain: jeeb-dev.local
+
+backend:
+  replicas: 1
+  nodePort: 30086
+  imageTag: latest
+  vaultImage: hashicorp/vault:1.17
+  database: jeeb_learning
+  vault:
+    path: secret/data/jeeb/learning/backend/develop
+    envFile: .env.develop
+    role: learning-backend
+
+frontend:
+  replicas: 1
+  nodePort: 30087
+  imageTag: latest
+  vaultImage: hashicorp/vault:1.17
+  vault:
+    path: secret/data/jeeb/learning/frontend/develop
+    envFile: .env.develop
+    role: learning-frontend
+
+# References to shared services deployed by jeeb-app (same namespace)
+keycloak:
+  host: keycloak.jeeb-dev.svc.cluster.local
+
+infra:
+  vaultAddr: "http://vault.jeeb-infra.svc.cluster.local:8200"

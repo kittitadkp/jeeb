@@ -7,30 +7,11 @@ metadata:
   namespace: {{ .Values.global.namespace }}
 data:
   agent.hcl: |
-    vault {
-      address = "{{ .Values.infra.vaultAddr }}"
-    }
-
-    auto_auth {
-      method "kubernetes" {
-        mount_path = "auth/kubernetes"
-        config = {
-          role = "{{ .Values.backend.vault.role }}"
-        }
-      }
-
-      sink "file" {
-        config = {
-          path = "/app/env/.vault-token"
-        }
-      }
-    }
-
-    template {
-      source      = "/vault/config/{{ $tplFile }}"
-      destination = "/app/env/{{ $envFile }}"
-      perms       = "0640"
-    }
+    {{- include "jeeb-app.vaultAgentHCL" (dict
+        "vaultAddr" .Values.infra.vaultAddr
+        "role"      .Values.backend.vault.role
+        "envFile"   $envFile
+        "tplFile"   $tplFile) | nindent 4 }}
 
   {{ $tplFile }}: |
     {{ "{{" }}- with secret "{{ .Values.backend.vault.path }}" -{{ "}}" }}

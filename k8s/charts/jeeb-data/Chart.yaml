@@ -1,0 +1,6 @@
+apiVersion: v2
+name: jeeb-data
+description: Shared data services — MongoDB and Keycloak
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

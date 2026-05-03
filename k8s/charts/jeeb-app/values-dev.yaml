@@ -17,7 +17,3 @@ frontend:
     path: secret/data/jeeb/frontend/develop
     envFile: .env.develop
 
-learning:
-  vault:
-    path: secret/data/jeeb/learning/develop
-    envFile: .env.develop

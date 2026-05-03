@@ -1,0 +1,78 @@
+{{- $envFile := .Values.backend.vault.envFile -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-backend
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: learning-backend
+  template:
+    metadata:
+      labels:
+        app: learning-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: learning-backend
+      imagePullSecrets:
+        - name: nexus-pull-secret
+      containers:
+        {{- include "jeeb-learning.vaultAgentContainer" (dict
+            "vaultImage" .Values.backend.vaultImage
+            "vaultAddr"  .Values.infra.vaultAddr) | nindent 8 }}
+
+        - name: learning-backend
+          image: {{ .Values.global.imageRegistry }}/jeeb/learning:{{ .Values.backend.imageTag }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -f /app/env/{{ $envFile }} ]; do
+                echo "waiting for vault-agent to render {{ $envFile }}..."
+                sleep 2
+              done
+              set -a
+              . /app/env/{{ $envFile }}
+              set +a
+              exec /app/jeeb-learning
+          workingDir: /app
+          envFrom:
+            - configMapRef:
+                name: learning-backend-config
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: vault-secrets
+              mountPath: /app/env
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 500m
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+
+      volumes:
+        {{- include "jeeb-learning.vaultVolumes" (dict "configMapName" "learning-backend-vault-agent-config") | nindent 8 }}

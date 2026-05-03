@@ -67,7 +67,12 @@
       "Bash(helm list *)",
       "Bash(kubectl wait *)",
       "Bash(bash k8s/apply.sh)",
-      "Bash(helm uninstall *)"
+      "Bash(helm uninstall *)",
+      "Bash(notebooklm create *)",
+      "Bash(notebooklm source *)",
+      "Bash(notebooklm use *)",
+      "Bash(dir /s \"D:\\\\personal\\\\jeeb\\\\k8s-manager\")",
+      "Bash(Get-ChildItem *)"
     ]
   },
   "mcpServers": {

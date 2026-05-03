@@ -1,0 +1,23 @@
+{{- $envFile := .Values.frontend.vault.envFile -}}
+{{- $tplFile := trimPrefix "." $envFile | replace "." "-" | printf "%s.tpl" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-frontend-vault-agent-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  agent.hcl: |
+    {{- include "jeeb-learning.vaultAgentHCL" (dict
+        "vaultAddr" .Values.infra.vaultAddr
+        "role"      .Values.frontend.vault.role
+        "envFile"   $envFile
+        "tplFile"   $tplFile) | nindent 4 }}
+
+  {{ $tplFile }}: |
+    {{ "{{" }}- with secret "{{ .Values.frontend.vault.path }}" -{{ "}}" }}
+    APP_ENV={{ .Values.global.env }}
+    VITE_KEYCLOAK_URL={{ "{{" }} .Data.data.VITE_KEYCLOAK_URL {{ "}}" }}
+    VITE_KEYCLOAK_REALM={{ "{{" }} .Data.data.VITE_KEYCLOAK_REALM {{ "}}" }}
+    VITE_KEYCLOAK_CLIENT_ID={{ "{{" }} .Data.data.VITE_KEYCLOAK_CLIENT_ID {{ "}}" }}
+    VITE_API_URL={{ "{{" }} .Data.data.VITE_API_URL {{ "}}" }}
+    {{ "{{" }}- end {{ "}}" }}
