@@ -6,23 +6,22 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"k8s-manager/internal/config"
 )
 
 const (
 	certManagerVersion = "v1.15.3"
 	rancherVersion     = "2.9.3"
-	rancherHostname    = "rancher.jeeb-infra.local"
-	rancherNamespace   = "cattle-system"
-	certNamespace      = "cert-manager"
-	rancherNodePort    = "30443"
 )
 
 type Deployer struct {
+	cfg    *config.ClusterConfig
 	dryRun bool
 }
 
-func NewDeployer(dryRun bool) *Deployer {
-	return &Deployer{dryRun: dryRun}
+func NewDeployer(cfg *config.ClusterConfig, dryRun bool) *Deployer {
+	return &Deployer{cfg: cfg, dryRun: dryRun}
 }
 
 func (d *Deployer) Run(ctx context.Context) error {
@@ -35,7 +34,7 @@ func (d *Deployer) Run(ctx context.Context) error {
 		{"Wait for cert-manager pods", d.waitCertManager},
 		{"Install Rancher " + rancherVersion, d.installRancher},
 		{"Wait for Rancher rollout", d.waitRancher},
-		{"Patch Rancher service to NodePort " + rancherNodePort, d.patchNodePort},
+		{"Patch Rancher service to NodePort " + fmt.Sprint(d.cfg.RancherNodePort), d.patchNodePort},
 	}
 
 	fmt.Println("=== Rancher Setup ===")
@@ -54,14 +53,14 @@ func (d *Deployer) Run(ctx context.Context) error {
 
 	fmt.Printf(`=== Rancher deployed ===
 
-  Via NodePort  https://localhost:%s  (accept self-signed cert warning)
+  Via NodePort  https://localhost:%d  (accept self-signed cert warning)
   Via ingress   https://%s
 
   Bootstrap password: admin  (you will be prompted to change it on first login)
 
   Add to C:\Windows\System32\drivers\etc\hosts (as Administrator):
     127.0.0.1  %s
-`, rancherNodePort, rancherHostname, rancherHostname)
+`, d.cfg.RancherNodePort, d.cfg.RancherHostname, d.cfg.RancherHostname)
 	return nil
 }
 
@@ -82,7 +81,7 @@ func (d *Deployer) addRepos(ctx context.Context) error {
 func (d *Deployer) installCertManager(ctx context.Context) error {
 	return d.helm(ctx,
 		"upgrade", "--install", "cert-manager", "jetstack/cert-manager",
-		"--namespace", certNamespace,
+		"--namespace", d.cfg.CertManagerNamespace,
 		"--create-namespace",
 		"--version", certManagerVersion,
 		"--set", "crds.enabled=true",
@@ -95,7 +94,7 @@ func (d *Deployer) waitCertManager(ctx context.Context) error {
 		fmt.Printf("      waiting for %s...\n", dep)
 		if err := d.kubectl(ctx,
 			"rollout", "status", "deployment/"+dep,
-			"-n", certNamespace,
+			"-n", d.cfg.CertManagerNamespace,
 			"--timeout=120s",
 		); err != nil {
 			return err
@@ -107,10 +106,10 @@ func (d *Deployer) waitCertManager(ctx context.Context) error {
 func (d *Deployer) installRancher(ctx context.Context) error {
 	return d.helm(ctx,
 		"upgrade", "--install", "rancher", "rancher-stable/rancher",
-		"--namespace", rancherNamespace,
+		"--namespace", d.cfg.RancherNamespace,
 		"--create-namespace",
 		"--version", rancherVersion,
-		"--set", "hostname="+rancherHostname,
+		"--set", "hostname="+d.cfg.RancherHostname,
 		"--set", "ingress.tls.source=rancher",
 		"--set", "ingress.ingressClassName=nginx",
 		"--set", "replicas=1",
@@ -121,7 +120,7 @@ func (d *Deployer) installRancher(ctx context.Context) error {
 func (d *Deployer) waitRancher(ctx context.Context) error {
 	return d.kubectl(ctx,
 		"rollout", "status", "deployment/rancher",
-		"-n", rancherNamespace,
+		"-n", d.cfg.RancherNamespace,
 		"--timeout=300s",
 	)
 }
@@ -129,11 +128,11 @@ func (d *Deployer) waitRancher(ctx context.Context) error {
 func (d *Deployer) patchNodePort(ctx context.Context) error {
 	patch := fmt.Sprintf(`[
     {"op":"replace","path":"/spec/type","value":"NodePort"},
-    {"op":"add","path":"/spec/ports/0/nodePort","value":%s}
-  ]`, rancherNodePort)
+    {"op":"add","path":"/spec/ports/0/nodePort","value":%d}
+  ]`, d.cfg.RancherNodePort)
 	return d.kubectl(ctx,
 		"patch", "svc", "rancher",
-		"-n", rancherNamespace,
+		"-n", d.cfg.RancherNamespace,
 		"--type=json",
 		"-p="+patch,
 	)

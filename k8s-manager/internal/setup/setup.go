@@ -11,19 +11,24 @@ import (
 	"strings"
 	"time"
 
+	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
+	"k8s-manager/internal/helm"
+	"k8s-manager/internal/jenkins"
 )
 
 type Runner struct {
+	cfg         *config.ClusterConfig
 	creds       *credentials.Credentials
 	chartsDir   string
 	outputDir   string
 	dryRun      bool
-	secretsFile string // path to generated values-secrets.yaml
+	secretsFile string
 }
 
-func NewRunner(creds *credentials.Credentials, chartsDir, outputDir string, dryRun bool) *Runner {
+func NewRunner(cfg *config.ClusterConfig, creds *credentials.Credentials, chartsDir, outputDir string, dryRun bool) *Runner {
 	return &Runner{
+		cfg:       cfg,
 		creds:     creds,
 		chartsDir: chartsDir,
 		outputDir: outputDir,
@@ -37,7 +42,7 @@ func (r *Runner) writeSecretsFile() error {
 		r.secretsFile = filepath.Join(r.outputDir, "values-secrets.yaml")
 		return nil
 	}
-	path, err := WriteSecretsValuesFile(r.outputDir, r.creds)
+	path, err := WriteSecretsValuesFile(r.outputDir, r.creds, r.cfg.NexusRegistry)
 	if err != nil {
 		return err
 	}
@@ -46,9 +51,8 @@ func (r *Runner) writeSecretsFile() error {
 	return nil
 }
 
-// Deploy runs helm upgrade --install for the given targets (infra, app, obs).
-// If targets is empty all three charts are deployed.
-// It generates values-secrets.yaml first, same as the full setup flow.
+// Deploy runs helm upgrade --install for the given targets.
+// If targets is empty all charts are deployed.
 func (r *Runner) Deploy(ctx context.Context, targets []string) error {
 	all := len(targets) == 0
 	want := make(map[string]bool, len(targets))
@@ -76,8 +80,9 @@ func (r *Runner) Deploy(ctx context.Context, targets []string) error {
 	}
 	steps := []step{
 		{"Deploy jeeb-infra    (Vault, Jenkins, Nexus, SonarQube, Kong)", "infra", r.deployInfra},
-		{"Deploy jeeb-app      (MongoDB, Keycloak, backend, frontend)", "app", r.deployApp},
-		{"Deploy jeeb-learning", "learning", r.deployLearning},
+		{"Deploy jeeb-data     (MongoDB, Keycloak)", "data", r.deployData},
+		{"Deploy jeeb-app      (backend, frontend)", "app", r.deployApp},
+		{"Deploy jeeb-learning (learning services)", "learning", r.deployLearning},
 		{"Deploy jeeb-obs      (Prometheus, Loki, Grafana)", "obs", r.deployObs},
 	}
 
@@ -106,15 +111,17 @@ func (r *Runner) Run(ctx context.Context) error {
 		fn   func(context.Context) error
 	}{
 		{"Deploy jeeb-infra (Vault, Jenkins, Nexus, SonarQube, Kong)", r.deployInfra},
-		{"Deploy jeeb-app (MongoDB, Keycloak, backend, frontend)", r.deployApp},
+		{"Deploy jeeb-data (MongoDB, Keycloak)", r.deployData},
+		{"Deploy jeeb-app (backend, frontend)", r.deployApp},
 		{"Deploy jeeb-learning", r.deployLearning},
 		{"Deploy jeeb-obs (Prometheus, Loki, Grafana)", r.deployObs},
 		{"Wait for Vault pod ready", r.waitForVault},
 		{"Initialize Vault", r.initVault},
-		{"Store unseal keys in Kubernetes secret", r.storeUnsealKeys},
+		{"Store unseal keys in Kubernetes secret", r.storeUnsealKeysApply},
 		{"Unseal Vault", r.unsealVault},
 		{"Configure Vault (KV engine, policies, K8s auth roles)", r.configureVault},
 		{"Patch CoreDNS for .local DNS", r.patchCoreDNS},
+		{"Seed Jenkins (create seed job, generate pipeline jobs)", r.seedJenkins},
 	}
 
 	fmt.Println("=== New Cluster Setup ===")
@@ -125,7 +132,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 	fmt.Println()
 
-	fmt.Println("[0/10] Generate values-secrets.yaml from credentials")
+	fmt.Printf("[0/%d] Generate values-secrets.yaml from credentials\n", len(steps))
 	if err := r.writeSecretsFile(); err != nil {
 		return fmt.Errorf("generate secrets values file: %w", err)
 	}
@@ -144,63 +151,82 @@ func (r *Runner) Run(ctx context.Context) error {
 	return nil
 }
 
-// ── Step 1 ───────────────────────────────────────────────────────────────────
+// DeployInfra is exported so kongkey can reuse it after updating credentials.
+func (r *Runner) DeployInfra(ctx context.Context) error {
+	return r.deployInfra(ctx)
+}
+
+// SetSecretsFile allows callers to inject a pre-written secrets file path,
+// skipping the writeSecretsFile step (used by kongkey after it writes its own).
+func (r *Runner) SetSecretsFile(path string) {
+	r.secretsFile = path
+}
+
+// ── deploy steps ─────────────────────────────────────────────────────────────
 
 func (r *Runner) deployInfra(ctx context.Context) error {
-	return r.helm(ctx, "upgrade", "--install", "jeeb-infra",
+	return helm.Run(ctx, r.dryRun,
+		"upgrade", "--install", r.cfg.ReleaseInfra,
 		filepath.Join(r.chartsDir, "jeeb-infra"),
-		"--namespace", "jeeb-infra",
+		"--namespace", r.cfg.NamespaceInfra,
 		"--create-namespace",
 		"-f", r.secretsFile,
 	)
 }
 
-// ── Step 2 ───────────────────────────────────────────────────────────────────
+func (r *Runner) deployData(ctx context.Context) error {
+	return helm.Run(ctx, r.dryRun,
+		"upgrade", "--install", r.cfg.ReleaseData,
+		filepath.Join(r.chartsDir, "jeeb-data"),
+		"--namespace", r.cfg.NamespaceDev,
+		"--create-namespace",
+		"-f", filepath.Join(r.chartsDir, "jeeb-data", "values-dev.yaml"),
+		"-f", r.secretsFile,
+	)
+}
 
 func (r *Runner) deployApp(ctx context.Context) error {
-	return r.helm(ctx, "upgrade", "--install", "jeeb-dev",
+	return helm.Run(ctx, r.dryRun,
+		"upgrade", "--install", r.cfg.ReleaseDev,
 		filepath.Join(r.chartsDir, "jeeb-app"),
-		"--namespace", "jeeb-dev",
+		"--namespace", r.cfg.NamespaceDev,
 		"--create-namespace",
 		"-f", filepath.Join(r.chartsDir, "jeeb-app", "values-dev.yaml"),
 		"-f", r.secretsFile,
 	)
 }
 
-// ── Step 3 ───────────────────────────────────────────────────────────────────
-
 func (r *Runner) deployLearning(ctx context.Context) error {
-	return r.helm(ctx, "upgrade", "--install", "jeeb-learning",
+	return helm.Run(ctx, r.dryRun,
+		"upgrade", "--install", r.cfg.ReleaseLearning,
 		filepath.Join(r.chartsDir, "jeeb-learning"),
-		"--namespace", "jeeb-dev",
+		"--namespace", r.cfg.NamespaceDev,
 		"--create-namespace",
 		"-f", filepath.Join(r.chartsDir, "jeeb-learning", "values-dev.yaml"),
 		"-f", r.secretsFile,
 	)
 }
 
-// ── Step 4 ───────────────────────────────────────────────────────────────────
-
 func (r *Runner) deployObs(ctx context.Context) error {
-	return r.helm(ctx, "upgrade", "--install", "jeeb-obs",
+	return helm.Run(ctx, r.dryRun,
+		"upgrade", "--install", r.cfg.ReleaseObs,
 		filepath.Join(r.chartsDir, "jeeb-obs"),
-		"--namespace", "jeeb-obs",
+		"--namespace", r.cfg.NamespaceObs,
 		"--create-namespace",
 		"-f", r.secretsFile,
 	)
 }
 
-// ── Step 5 ───────────────────────────────────────────────────────────────────
+// ── Vault steps ───────────────────────────────────────────────────────────────
 
 func (r *Runner) waitForVault(ctx context.Context) error {
-	return r.kubectl(ctx, "wait", "pod/vault-0",
-		"-n", "jeeb-infra",
+	return r.kubectl(ctx, "wait",
+		fmt.Sprintf("pod/%s", r.cfg.VaultPod),
+		"-n", r.cfg.NamespaceInfra,
 		"--for=condition=Ready",
 		"--timeout=120s",
 	)
 }
-
-// ── Step 6 ───────────────────────────────────────────────────────────────────
 
 type vaultInitOutput struct {
 	UnsealKeysB64 []string `json:"unseal_keys_b64"`
@@ -210,19 +236,19 @@ type vaultInitOutput struct {
 func (r *Runner) initVault(ctx context.Context) error {
 	outPath := filepath.Join(r.outputDir, "vault-init.json")
 
-	// skip if already initialised
 	if _, err := os.Stat(outPath); err == nil {
 		fmt.Printf("      vault-init.json already exists — skipping init\n")
 		return nil
 	}
 
 	if r.dryRun {
-		fmt.Printf("      kubectl exec -n jeeb-infra vault-0 -- vault operator init -format=json > %s\n", outPath)
+		fmt.Printf("      kubectl exec -n %s %s -- vault operator init -format=json > %s\n",
+			r.cfg.NamespaceInfra, r.cfg.VaultPod, outPath)
 		return nil
 	}
 
 	out, err := exec.CommandContext(ctx,
-		"kubectl", "exec", "-n", "jeeb-infra", "vault-0", "--",
+		"kubectl", "exec", "-n", r.cfg.NamespaceInfra, r.cfg.VaultPod, "--",
 		"vault", "operator", "init", "-format=json",
 	).Output()
 	if err != nil {
@@ -237,9 +263,7 @@ func (r *Runner) initVault(ctx context.Context) error {
 	return nil
 }
 
-// ── Step 6 ───────────────────────────────────────────────────────────────────
-
-func (r *Runner) storeUnsealKeys(ctx context.Context) error {
+func (r *Runner) storeUnsealKeysApply(ctx context.Context) error {
 	init, err := r.loadVaultInit()
 	if err != nil {
 		return err
@@ -249,36 +273,19 @@ func (r *Runner) storeUnsealKeys(ctx context.Context) error {
 		return fmt.Errorf("expected at least 3 unseal keys, got %d", len(init.UnsealKeysB64))
 	}
 
-	return r.kubectl(ctx,
-		"create", "secret", "generic", "vault-unseal-keys",
-		"-n", "jeeb-infra",
-		"--from-literal=key1="+init.UnsealKeysB64[0],
-		"--from-literal=key2="+init.UnsealKeysB64[1],
-		"--from-literal=key3="+init.UnsealKeysB64[2],
-		"--dry-run=client", "-o", "yaml",
-	)
-	// pipe to kubectl apply is handled separately below
-}
-
-func (r *Runner) storeUnsealKeysApply(ctx context.Context) error {
-	init, err := r.loadVaultInit()
-	if err != nil {
-		return err
-	}
-
 	yaml := fmt.Sprintf(`apiVersion: v1
 kind: Secret
 metadata:
   name: vault-unseal-keys
-  namespace: jeeb-infra
+  namespace: %s
 stringData:
   key1: %s
   key2: %s
   key3: %s
-`, init.UnsealKeysB64[0], init.UnsealKeysB64[1], init.UnsealKeysB64[2])
+`, r.cfg.NamespaceInfra, init.UnsealKeysB64[0], init.UnsealKeysB64[1], init.UnsealKeysB64[2])
 
 	if r.dryRun {
-		fmt.Println("      kubectl apply -f - (vault-unseal-keys secret)")
+		fmt.Printf("      kubectl apply -f - (vault-unseal-keys secret in %s)\n", r.cfg.NamespaceInfra)
 		return nil
 	}
 
@@ -289,14 +296,7 @@ stringData:
 	return cmd.Run()
 }
 
-// ── Step 7 ───────────────────────────────────────────────────────────────────
-
 func (r *Runner) unsealVault(ctx context.Context) error {
-	// override storeUnsealKeys step to use apply approach
-	if err := r.storeUnsealKeysApply(ctx); err != nil {
-		return fmt.Errorf("store unseal keys: %w", err)
-	}
-
 	init, err := r.loadVaultInit()
 	if err != nil {
 		return err
@@ -312,7 +312,11 @@ func (r *Runner) unsealVault(ctx context.Context) error {
 	return nil
 }
 
-// ── Step 8 ───────────────────────────────────────────────────────────────────
+type vaultKV struct {
+	path string
+	key  string
+	val  string
+}
 
 func (r *Runner) configureVault(ctx context.Context) error {
 	init, err := r.loadVaultInit()
@@ -321,34 +325,55 @@ func (r *Runner) configureVault(ctx context.Context) error {
 	}
 	token := init.RootToken
 
-	type kv struct{ path, key, val string }
-	secrets := []kv{
+	mongoURI := func(db string) string {
+		return fmt.Sprintf("mongodb://%s:%s@%s/%s?authSource=admin",
+			r.creds.MongoDBUsername, r.creds.MongoDBPassword, r.cfg.MongoHost, db)
+	}
+	keycloakURL := fmt.Sprintf("http://%s", r.cfg.KeycloakHost)
+	keycloakPublic := fmt.Sprintf("http://localhost:%d", r.cfg.KeycloakNodePort)
+	backendPublic := fmt.Sprintf("http://localhost:%d", r.cfg.BackendNodePort)
+	learningPublic := fmt.Sprintf("http://localhost:%d", r.cfg.LearningNodePort)
+
+	secrets := []vaultKV{
 		// backend
-		{"secret/jeeb/backend/develop", "PORT", "8080"},
-		{"secret/jeeb/backend/develop", "LOG_LEVEL", "INFO"},
-		{"secret/jeeb/backend/develop", "MONGO_DATABASE", "jeeb"},
-		{"secret/jeeb/backend/develop", "MONGO_URI", fmt.Sprintf("mongodb://%s:%s@mongodb.jeeb-dev.svc.cluster.local:27017/jeeb?authSource=admin", r.creds.MongoDBUsername, r.creds.MongoDBPassword)},
-		{"secret/jeeb/backend/develop", "KEYCLOAK_URL", "http://keycloak.jeeb-dev.svc.cluster.local:8080"},
-		{"secret/jeeb/backend/develop", "KEYCLOAK_REALM", "jeeb"},
-		{"secret/jeeb/backend/develop", "KEYCLOAK_CLIENT_ID", "jeeb-app"},
+		{r.cfg.VaultPathBackend, "PORT", "8080"},
+		{r.cfg.VaultPathBackend, "LOG_LEVEL", "INFO"},
+		{r.cfg.VaultPathBackend, "MONGO_DATABASE", "jeeb"},
+		{r.cfg.VaultPathBackend, "MONGO_URI", mongoURI("jeeb")},
+		{r.cfg.VaultPathBackend, "KEYCLOAK_URL", keycloakURL},
+		{r.cfg.VaultPathBackend, "KEYCLOAK_REALM", r.cfg.KeycloakRealm},
+		{r.cfg.VaultPathBackend, "KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
 		// frontend
-		{"secret/jeeb/frontend/develop", "VITE_KEYCLOAK_URL", "http://localhost:30081"},
-		{"secret/jeeb/frontend/develop", "VITE_KEYCLOAK_REALM", "jeeb"},
-		{"secret/jeeb/frontend/develop", "VITE_KEYCLOAK_CLIENT_ID", "jeeb-app"},
-		{"secret/jeeb/frontend/develop", "VITE_API_URL", "http://localhost:30080"},
+		{r.cfg.VaultPathFrontend, "VITE_KEYCLOAK_URL", keycloakPublic},
+		{r.cfg.VaultPathFrontend, "VITE_KEYCLOAK_REALM", r.cfg.KeycloakRealm},
+		{r.cfg.VaultPathFrontend, "VITE_KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
+		{r.cfg.VaultPathFrontend, "VITE_API_URL", backendPublic},
 		// learning backend
-		{"secret/jeeb/learning/backend/develop", "PORT", "8080"},
-		{"secret/jeeb/learning/backend/develop", "LOG_LEVEL", "INFO"},
-		{"secret/jeeb/learning/backend/develop", "MONGO_DATABASE", "jeeb_learning"},
-		{"secret/jeeb/learning/backend/develop", "MONGO_URI", fmt.Sprintf("mongodb://%s:%s@mongodb.jeeb-dev.svc.cluster.local:27017/jeeb_learning?authSource=admin", r.creds.MongoDBUsername, r.creds.MongoDBPassword)},
-		{"secret/jeeb/learning/backend/develop", "KEYCLOAK_URL", "http://keycloak.jeeb-dev.svc.cluster.local:8080"},
-		{"secret/jeeb/learning/backend/develop", "KEYCLOAK_REALM", "jeeb"},
-		{"secret/jeeb/learning/backend/develop", "KEYCLOAK_CLIENT_ID", "jeeb-app"},
+		{r.cfg.VaultPathLearningBackend, "PORT", "8080"},
+		{r.cfg.VaultPathLearningBackend, "LOG_LEVEL", "INFO"},
+		{r.cfg.VaultPathLearningBackend, "MONGO_DATABASE", "jeeb_learning"},
+		{r.cfg.VaultPathLearningBackend, "MONGO_URI", mongoURI("jeeb_learning")},
+		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_URL", keycloakURL},
+		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_REALM", r.cfg.KeycloakRealm},
+		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
 		// learning frontend
-		{"secret/jeeb/learning/frontend/develop", "VITE_KEYCLOAK_URL", "http://localhost:30081"},
-		{"secret/jeeb/learning/frontend/develop", "VITE_KEYCLOAK_REALM", "jeeb"},
-		{"secret/jeeb/learning/frontend/develop", "VITE_KEYCLOAK_CLIENT_ID", "jeeb-app"},
-		{"secret/jeeb/learning/frontend/develop", "VITE_API_URL", "http://localhost:30086"},
+		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_URL", keycloakPublic},
+		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_REALM", r.cfg.KeycloakRealm},
+		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
+		{r.cfg.VaultPathLearningFrontend, "VITE_API_URL", learningPublic},
+	}
+
+	type serviceRole struct {
+		name      string
+		sa        string
+		policyTpl string
+		vaultPath string
+	}
+	roles := []serviceRole{
+		{"backend", "backend", "backend-policy", r.cfg.VaultPathBackend},
+		{"frontend", "frontend", "frontend-policy", r.cfg.VaultPathFrontend},
+		{"learning-backend", "learning-backend", "learning-backend-policy", r.cfg.VaultPathLearningBackend},
+		{"learning-frontend", "learning-frontend", "learning-frontend-policy", r.cfg.VaultPathLearningFrontend},
 	}
 
 	steps := []func() error{
@@ -356,15 +381,13 @@ func (r *Runner) configureVault(ctx context.Context) error {
 			return r.vaultExec(ctx, token, "secrets", "enable", "-path=secret", "kv-v2")
 		},
 		func() error {
-			// write secrets per path (group by path)
 			written := map[string]bool{}
 			for _, s := range secrets {
 				if written[s.path] {
 					continue
 				}
-				// collect all kv pairs for this path
-				var args []string
-				args = append(args, "kv", "put", s.path)
+				// vault kv put uses CLI path format (secret/X), not API format (secret/data/X)
+				args := []string{"kv", "put", config.KVCLIPath(s.path)}
 				for _, kv := range secrets {
 					if kv.path == s.path {
 						args = append(args, kv.key+"="+kv.val)
@@ -382,55 +405,30 @@ func (r *Runner) configureVault(ctx context.Context) error {
 			return r.vaultExec(ctx, token, "write", "auth/kubernetes/config",
 				"kubernetes_host=https://kubernetes.default.svc:443")
 		},
-		func() error {
-			return r.vaultWritePolicy(ctx, token, "backend-policy",
-				`path "secret/data/jeeb/backend/develop" { capabilities = ["read"] }`)
-		},
-		func() error {
-			return r.vaultExec(ctx, token, "write", "auth/kubernetes/role/backend",
-				"bound_service_account_names=backend",
-				"bound_service_account_namespaces=jeeb-dev",
-				"policies=backend-policy",
-				"ttl=1h")
-		},
-		func() error {
-			return r.vaultWritePolicy(ctx, token, "frontend-policy",
-				`path "secret/data/jeeb/frontend/develop" { capabilities = ["read"] }`)
-		},
-		func() error {
-			return r.vaultExec(ctx, token, "write", "auth/kubernetes/role/frontend",
-				"bound_service_account_names=frontend",
-				"bound_service_account_namespaces=jeeb-dev",
-				"policies=frontend-policy",
-				"ttl=1h")
-		},
-		func() error {
-			return r.vaultWritePolicy(ctx, token, "learning-backend-policy",
-				`path "secret/data/jeeb/learning/backend/develop" { capabilities = ["read"] }`)
-		},
-		func() error {
-			return r.vaultExec(ctx, token, "write", "auth/kubernetes/role/learning-backend",
-				"bound_service_account_names=learning-backend",
-				"bound_service_account_namespaces=jeeb-dev",
-				"policies=learning-backend-policy",
-				"ttl=1h")
-		},
-		func() error {
-			return r.vaultWritePolicy(ctx, token, "learning-frontend-policy",
-				`path "secret/data/jeeb/learning/frontend/develop" { capabilities = ["read"] }`)
-		},
-		func() error {
-			return r.vaultExec(ctx, token, "write", "auth/kubernetes/role/learning-frontend",
-				"bound_service_account_names=learning-frontend",
-				"bound_service_account_namespaces=jeeb-dev",
-				"policies=learning-frontend-policy",
-				"ttl=1h")
-		},
+	}
+
+	for _, role := range roles {
+		role := role
+		// VaultPath is already in API format (secret/data/...) — use directly in policy
+		policy := fmt.Sprintf(`path "%s" { capabilities = ["read"] }`, role.vaultPath)
+		steps = append(steps,
+			func() error {
+				return r.vaultWritePolicy(ctx, token, role.policyTpl, policy)
+			},
+			func() error {
+				return r.vaultExec(ctx, token, "write",
+					fmt.Sprintf("auth/kubernetes/role/%s", role.name),
+					fmt.Sprintf("bound_service_account_names=%s", role.sa),
+					fmt.Sprintf("bound_service_account_namespaces=%s", r.cfg.NamespaceDev),
+					fmt.Sprintf("policies=%s", role.policyTpl),
+					"ttl=1h",
+				)
+			},
+		)
 	}
 
 	for _, s := range steps {
 		if err := s(); err != nil {
-			// "already enabled" errors are non-fatal
 			if !strings.Contains(err.Error(), "already enabled") &&
 				!strings.Contains(err.Error(), "path is already in use") {
 				return err
@@ -440,21 +438,22 @@ func (r *Runner) configureVault(ctx context.Context) error {
 	return nil
 }
 
-// ── Step 9 ───────────────────────────────────────────────────────────────────
+// ── CoreDNS ───────────────────────────────────────────────────────────────────
 
 func (r *Runner) patchCoreDNS(ctx context.Context) error {
 	coreDNSPatch := filepath.Join(filepath.Dir(r.chartsDir), "coredns-patch.yaml")
 
 	if r.dryRun {
-		fmt.Println("      kubectl get svc -n jeeb-dev -l app.kubernetes.io/name=ingress-nginx -o jsonpath='{.items[0].spec.clusterIP}'")
+		fmt.Printf("      kubectl get svc -n %s -l %s -o jsonpath='{.items[0].spec.clusterIP}'\n",
+			r.cfg.NamespaceDev, r.cfg.IngressLabel)
 		fmt.Printf("      [substitute IP in %s and pipe to] kubectl apply -f -\n", coreDNSPatch)
 		return nil
 	}
 
 	out, err := exec.CommandContext(ctx,
 		"kubectl", "get", "svc",
-		"-n", "jeeb-dev",
-		"-l", "app.kubernetes.io/name=ingress-nginx",
+		"-n", r.cfg.NamespaceDev,
+		"-l", r.cfg.IngressLabel,
 		"-o", "jsonpath={.items[0].spec.clusterIP}",
 	).Output()
 
@@ -475,8 +474,6 @@ func (r *Runner) patchCoreDNS(ctx context.Context) error {
 		return nil
 	}
 
-	// Replace the placeholder IP with the detected one. The file contains a
-	// single IP address on each hosts line — replace any 4-octet pattern.
 	updated := substituteCoreDNSIP(string(patchYAML), ip)
 
 	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", "-")
@@ -489,13 +486,10 @@ func (r *Runner) patchCoreDNS(ctx context.Context) error {
 	return nil
 }
 
-// substituteCoreDNSIP replaces the existing IP on each 'hosts' entry line
-// with newIP. It matches the first IPv4 address at the start of any data line.
 func substituteCoreDNSIP(yaml, newIP string) string {
 	lines := strings.Split(yaml, "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		// Lines inside the Corefile hosts block start with an IP
 		if len(trimmed) > 0 && isIPLike(trimmed) {
 			parts := strings.Fields(trimmed)
 			if len(parts) >= 2 {
@@ -518,17 +512,6 @@ func isIPLike(s string) bool {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-func (r *Runner) helm(ctx context.Context, args ...string) error {
-	if r.dryRun {
-		fmt.Printf("      helm %s\n", strings.Join(args, " "))
-		return nil
-	}
-	cmd := exec.CommandContext(ctx, "helm", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
 func (r *Runner) kubectl(ctx context.Context, args ...string) error {
 	if r.dryRun {
 		fmt.Printf("      kubectl %s\n", strings.Join(args, " "))
@@ -542,9 +525,9 @@ func (r *Runner) kubectl(ctx context.Context, args ...string) error {
 
 func (r *Runner) vaultExec(ctx context.Context, token string, args ...string) error {
 	base := []string{
-		"exec", "-i", "-n", "jeeb-infra", "vault-0", "--",
+		"exec", "-i", "-n", r.cfg.NamespaceInfra, r.cfg.VaultPod, "--",
 		"env",
-		"VAULT_ADDR=http://127.0.0.1:8200",
+		fmt.Sprintf("VAULT_ADDR=%s", r.cfg.VaultAddr),
 		"VAULT_TOKEN=" + token,
 		"vault",
 	}
@@ -557,9 +540,9 @@ func (r *Runner) vaultWritePolicy(ctx context.Context, token, name, policy strin
 		return nil
 	}
 	cmd := exec.CommandContext(ctx,
-		"kubectl", "exec", "-i", "-n", "jeeb-infra", "vault-0", "--",
+		"kubectl", "exec", "-i", "-n", r.cfg.NamespaceInfra, r.cfg.VaultPod, "--",
 		"env",
-		"VAULT_ADDR=http://127.0.0.1:8200",
+		fmt.Sprintf("VAULT_ADDR=%s", r.cfg.VaultAddr),
 		"VAULT_TOKEN="+token,
 		"vault", "policy", "write", name, "-",
 	)
@@ -582,23 +565,56 @@ func (r *Runner) loadVaultInit() (*vaultInitOutput, error) {
 	return &v, nil
 }
 
+func (r *Runner) seedJenkins(ctx context.Context) error {
+	// Derive repo root from chartsDir (k8s/charts → k8s → repo root).
+	repoRoot := filepath.Dir(filepath.Dir(r.chartsDir))
+	groovyPath := filepath.Join(repoRoot, "jenkins", "jobs", "seed.groovy")
+
+	if _, err := os.Stat(groovyPath); err != nil {
+		fmt.Printf("      WARNING: seed.groovy not found at %s\n", groovyPath)
+		fmt.Println("      Run 'k8s-manager seed --groovy-path <path>' after Jenkins is ready")
+		return nil
+	}
+
+	return jenkins.NewSeeder(r.cfg, r.creds, groovyPath, "", r.dryRun).Run(ctx)
+}
+
 func (r *Runner) printAccessTable() {
-	fmt.Print(`
-  jeeb-infra:
-    Jenkins    http://localhost:30082
-    SonarQube  http://localhost:30090
-    Nexus      http://localhost:30083
-    Vault      http://localhost:30091
+	fmt.Printf(`
+  %s (infra):
+    Jenkins    http://localhost:%d
+    Nexus      http://localhost:%d
+    SonarQube  http://localhost:%d
+    Kong       http://localhost:%d
+    Vault      http://localhost:%d
 
-  jeeb-dev:
-    Frontend          http://localhost:30000
-    Backend           http://localhost:30080
-    Keycloak          http://localhost:30081
-    Learning frontend http://localhost:30087
-    Learning backend  http://localhost:30086
+  %s (dev):
+    Frontend          http://localhost:%d
+    Backend           http://localhost:%d
+    Keycloak          http://localhost:%d
+    MongoDB           localhost:%d
+    Learning backend  http://localhost:%d
+    Learning frontend http://localhost:%d
 
-  jeeb-obs:
-    Grafana    http://localhost:30092
-    Prometheus http://localhost:30093
-`)
+  %s (obs):
+    Grafana    http://localhost:%d
+    Prometheus http://localhost:%d
+`,
+		r.cfg.NamespaceInfra,
+		r.cfg.JenkinsNodePort,
+		r.cfg.NexusUINodePort,
+		r.cfg.SonarQubeNodePort,
+		r.cfg.KongNodePort,
+		r.cfg.VaultNodePort,
+		r.cfg.NamespaceDev,
+		r.cfg.FrontendNodePort,
+		r.cfg.BackendNodePort,
+		r.cfg.KeycloakNodePort,
+		r.cfg.MongoNodePort,
+		r.cfg.LearningNodePort,
+		r.cfg.LearningFrontPort,
+		r.cfg.NamespaceObs,
+		r.cfg.GrafanaNodePort,
+		r.cfg.PrometheusNodePort,
+	)
 }

@@ -11,10 +11,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
+	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
 	"k8s-manager/internal/setup"
 
@@ -23,14 +22,16 @@ import (
 
 // Updater handles fetching, storing, and deploying the Keycloak public key.
 type Updater struct {
+	cfg       *config.ClusterConfig
 	credsPath string
 	chartsDir string
 	outputDir string
 	dryRun    bool
 }
 
-func NewUpdater(credsPath, chartsDir, outputDir string, dryRun bool) *Updater {
+func NewUpdater(cfg *config.ClusterConfig, credsPath, chartsDir, outputDir string, dryRun bool) *Updater {
 	return &Updater{
+		cfg:       cfg,
 		credsPath: credsPath,
 		chartsDir: chartsDir,
 		outputDir: outputDir,
@@ -40,18 +41,18 @@ func NewUpdater(credsPath, chartsDir, outputDir string, dryRun bool) *Updater {
 
 // Run fetches the Keycloak RS256 public key (from --key or JWKS endpoint),
 // saves it to credentials.yaml, regenerates values-secrets.yaml, and
-// redeploys the jeeb-infra chart so Kong picks up the new key.
+// redeploys jeeb-infra so Kong picks up the new key.
 func (u *Updater) Run(ctx context.Context, pemKey string) error {
 	if pemKey == "" {
 		var err error
-		pemKey, err = fetchFromKeycloak()
+		pemKey, err = u.fetchFromKeycloak()
 		if err != nil {
-			return fmt.Errorf("fetch key from Keycloak: %w\n\nIs Keycloak running at http://localhost:30081?", err)
+			return fmt.Errorf("fetch key from Keycloak: %w\n\nIs Keycloak running at http://localhost:%d?",
+				err, u.cfg.KeycloakNodePort)
 		}
 		fmt.Printf("Fetched RS256 public key from Keycloak.\n")
 	}
 
-	// Validate that it looks like a PEM public key
 	if !strings.Contains(pemKey, "BEGIN PUBLIC KEY") {
 		return fmt.Errorf("provided key does not look like a PEM public key (missing 'BEGIN PUBLIC KEY')")
 	}
@@ -63,13 +64,15 @@ func (u *Updater) Run(ctx context.Context, pemKey string) error {
 	}
 
 	fmt.Println("Regenerating values-secrets.yaml...")
-	secretsPath, err := setup.WriteSecretsValuesFile(u.outputDir, creds)
+	secretsPath, err := setup.WriteSecretsValuesFile(u.outputDir, creds, u.cfg.NexusRegistry)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Redeploying jeeb-infra with updated Kong key...\n")
-	return u.redeployInfra(ctx, secretsPath)
+	runner := setup.NewRunner(u.cfg, creds, u.chartsDir, u.outputDir, u.dryRun)
+	runner.SetSecretsFile(secretsPath)
+	return runner.DeployInfra(ctx)
 }
 
 func (u *Updater) updateCredsFile(pemKey string) (*credentials.Credentials, error) {
@@ -78,7 +81,6 @@ func (u *Updater) updateCredsFile(pemKey string) (*credentials.Credentials, erro
 		return nil, fmt.Errorf("read %s: %w", u.credsPath, err)
 	}
 
-	// Parse into a generic map to preserve comments and structure
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", u.credsPath, err)
@@ -107,30 +109,9 @@ func (u *Updater) updateCredsFile(pemKey string) (*credentials.Credentials, erro
 	return credentials.Load(u.credsPath)
 }
 
-func (u *Updater) redeployInfra(ctx context.Context, secretsPath string) error {
-	args := []string{
-		"upgrade", "--install", "jeeb-infra",
-		filepath.Join(u.chartsDir, "jeeb-infra"),
-		"--namespace", "jeeb-infra",
-		"--create-namespace",
-		"-f", secretsPath,
-	}
-
-	if u.dryRun {
-		fmt.Printf("      helm %s\n", strings.Join(args, " "))
-		return nil
-	}
-
-	cmd := exec.CommandContext(ctx, "helm", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-// fetchFromKeycloak pulls the first RS256 key from the Keycloak JWKS endpoint
-// and converts it to PEM format.
-func fetchFromKeycloak() (string, error) {
-	url := "http://localhost:30081/realms/jeeb/protocol/openid-connect/certs"
+func (u *Updater) fetchFromKeycloak() (string, error) {
+	url := fmt.Sprintf("http://localhost:%d/realms/%s/protocol/openid-connect/certs",
+		u.cfg.KeycloakNodePort, u.cfg.KeycloakRealm)
 	resp, err := http.Get(url) //nolint:noctx
 	if err != nil {
 		return "", err

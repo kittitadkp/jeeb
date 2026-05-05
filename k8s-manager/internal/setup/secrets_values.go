@@ -13,9 +13,8 @@ import (
 )
 
 // GenerateSecretsValues builds a Helm values YAML from credentials.
-// The nexus.dockerConfigJson is computed on the fly from nexus.adminPassword
-// so the raw password is never stored in the generated file.
-func GenerateSecretsValues(creds *credentials.Credentials) ([]byte, error) {
+// nexusRegistry is the host:port used for the Nexus docker pull secret (e.g. "localhost:30050").
+func GenerateSecretsValues(creds *credentials.Credentials, nexusRegistry string) ([]byte, error) {
 	data := map[string]interface{}{
 		"mongodb": map[string]interface{}{
 			"credentials": map[string]interface{}{
@@ -30,7 +29,7 @@ func GenerateSecretsValues(creds *credentials.Credentials) ([]byte, error) {
 			},
 		},
 		"nexus": map[string]interface{}{
-			"dockerConfigJson": nexusDockerConfigJSON("localhost:30050", creds.NexusAdminPassword),
+			"dockerConfigJson": nexusDockerConfigJSON(nexusRegistry, creds.NexusAdminPassword),
 			"credentials": map[string]interface{}{
 				"adminPassword": creds.NexusAdminPassword,
 			},
@@ -62,8 +61,8 @@ func GenerateSecretsValues(creds *credentials.Credentials) ([]byte, error) {
 
 // WriteSecretsValuesFile writes the generated secrets values to outputDir/values-secrets.yaml.
 // The file is created with mode 0600 so only the owner can read it.
-func WriteSecretsValuesFile(outputDir string, creds *credentials.Credentials) (string, error) {
-	content, err := GenerateSecretsValues(creds)
+func WriteSecretsValuesFile(outputDir string, creds *credentials.Credentials, nexusRegistry string) (string, error) {
+	content, err := GenerateSecretsValues(creds, nexusRegistry)
 	if err != nil {
 		return "", fmt.Errorf("generate secrets values: %w", err)
 	}

@@ -25,7 +25,7 @@ func TestGenerateSecretsValues(t *testing.T) {
 		KongKeycloakPublicKey:  "-----BEGIN PUBLIC KEY-----\nABC123\n-----END PUBLIC KEY-----",
 	}
 
-	out, err := GenerateSecretsValues(creds)
+	out, err := GenerateSecretsValues(creds, "localhost:30050")
 	if err != nil {
 		t.Fatal(err)
 	}

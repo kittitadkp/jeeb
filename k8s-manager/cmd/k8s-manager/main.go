@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
+	"k8s-manager/internal/jenkins"
 	"k8s-manager/internal/kongkey"
 	"k8s-manager/internal/kube"
 	"k8s-manager/internal/rancher"
@@ -17,7 +19,13 @@ import (
 )
 
 func main() {
-	var kubeconfig string
+	var (
+		kubeconfig string
+		credsFile  string
+		chartsDir  string
+		outputDir  string
+		dryRun     bool
+	)
 
 	root := &cobra.Command{
 		Use:   "k8s-manager",
@@ -25,16 +33,21 @@ func main() {
 	}
 
 	root.PersistentFlags().StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig (defaults to ~/.kube/config)")
+	root.PersistentFlags().StringVar(&credsFile, "credentials", "", "path to credentials.yaml (default: env/credentials.yaml relative to binary)")
+	root.PersistentFlags().StringVar(&chartsDir, "charts-dir", defaultChartsDir(), "path to k8s/charts directory")
+	root.PersistentFlags().StringVar(&outputDir, "output-dir", defaultOutputDir(), "directory to write vault-init.json and values-secrets.yaml")
+	root.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "print commands without executing them")
 
 	root.AddCommand(
 		newStatusCmd(&kubeconfig),
 		newRestartCmd(&kubeconfig),
 		newLogsCmd(&kubeconfig),
-		newSetupCmd(),
-		newDeployCmd(),
-		newValidateCmd(),
-		newKongKeyCmd(),
-		newRancherCmd(),
+		newSetupCmd(&credsFile, &chartsDir, &outputDir, &dryRun),
+		newDeployCmd(&credsFile, &chartsDir, &outputDir, &dryRun),
+		newSeedCmd(&credsFile, &dryRun),
+		newRancherCmd(&credsFile, &dryRun),
+		newValidateCmd(&credsFile),
+		newKongKeyCmd(&credsFile, &chartsDir, &outputDir, &dryRun),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -42,199 +55,146 @@ func main() {
 	}
 }
 
-func newSetupCmd() *cobra.Command {
-	var credsFile string
-	var chartsDir string
-	var outputDir string
-	var dryRun bool
-
-	cmd := &cobra.Command{
+func newSetupCmd(credsFile, chartsDir, outputDir *string, dryRun *bool) *cobra.Command {
+	return &cobra.Command{
 		Use:   "setup",
 		Short: "Bootstrap a new cluster end-to-end (deploy charts, init Vault, patch CoreDNS)",
 		Long: `Runs the full new-cluster setup in order:
-  1. Deploy jeeb-infra  (Vault, Jenkins, Nexus, SonarQube, Kong)
-  2. Deploy jeeb-app    (MongoDB, Keycloak, backend, frontend, learning)
-  3. Deploy jeeb-obs    (Prometheus, Loki, Grafana)
-  4. Wait for Vault pod ready
-  5. Initialize Vault   → saves vault-init.json to --output-dir
-  6. Store unseal keys  → Kubernetes secret vault-unseal-keys
-  7. Unseal Vault
-  8. Configure Vault    (KV engine, policies, K8s auth roles)
-  9. Patch CoreDNS      (detects ingress ClusterIP automatically)
+  1.  Deploy jeeb-infra  (Vault, Jenkins, Nexus, SonarQube, Kong)
+  2.  Deploy jeeb-data   (MongoDB, Keycloak)
+  3.  Deploy jeeb-app    (backend, frontend)
+  4.  Deploy jeeb-learning
+  5.  Deploy jeeb-obs    (Prometheus, Loki, Grafana)
+  6.  Wait for Vault pod ready
+  7.  Initialize Vault   → saves vault-init.json to --output-dir
+  8.  Store unseal keys  → Kubernetes secret vault-unseal-keys
+  9.  Unseal Vault
+  10. Configure Vault    (KV engine, policies, K8s auth roles)
+  11. Patch CoreDNS      (detects ingress ClusterIP automatically)
+  12. Seed Jenkins       (create seed job, generate all pipeline jobs)
 
 Copy env/credentials.yaml.example to env/credentials.yaml and fill all values before running.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if credsFile == "" {
-				credsFile = defaultCredsPath()
-			}
-
-			creds, err := credentials.Load(credsFile)
+			path := resolvedCredsFile(*credsFile)
+			creds, err := loadCreds(path)
 			if err != nil {
-				return fmt.Errorf("load credentials from %s: %w\n\nCopy env/credentials.yaml.example → env/credentials.yaml and fill all values", credsFile, err)
+				return err
 			}
-
-			runner := setup.NewRunner(creds, chartsDir, outputDir, dryRun)
-			return runner.Run(cmd.Context())
+			cfg := config.LoadFromFile(path)
+			return setup.NewRunner(cfg, creds, *chartsDir, *outputDir, *dryRun).Run(cmd.Context())
 		},
 	}
-
-	cmd.Flags().StringVar(&credsFile, "credentials", "", "path to credentials.yaml (default: env/credentials.yaml relative to binary)")
-	cmd.Flags().StringVar(&chartsDir, "charts-dir", defaultChartsDir(), "path to k8s/charts directory")
-	cmd.Flags().StringVar(&outputDir, "output-dir", defaultOutputDir(), "directory to write vault-init.json")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print commands without executing them")
-
-	return cmd
 }
 
-// defaultCredsPath resolves env/credentials.yaml relative to the binary location.
-func defaultCredsPath() string {
-	exe, _ := os.Executable()
-	return filepath.Join(filepath.Dir(exe), "env", "credentials.yaml")
-}
-
-func defaultChartsDir() string {
-	exe, _ := os.Executable()
-	// walk up to find k8s/charts (works when running from repo root too)
-	dir := filepath.Dir(exe)
-	for i := 0; i < 4; i++ {
-		candidate := filepath.Join(dir, "k8s", "charts")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		dir = filepath.Dir(dir)
-	}
-	return filepath.Join("k8s", "charts")
-}
-
-func defaultOutputDir() string {
-	exe, _ := os.Executable()
-	_ = runtime.GOOS
-	return filepath.Dir(exe)
-}
-
-func newDeployCmd() *cobra.Command {
-	var credsFile string
-	var chartsDir string
-	var outputDir string
-	var dryRun bool
-
-	cmd := &cobra.Command{
-		Use:   "deploy [infra] [app] [learning] [obs]",
+func newDeployCmd(credsFile, chartsDir, outputDir *string, dryRun *bool) *cobra.Command {
+	return &cobra.Command{
+		Use:   "deploy [infra] [data] [app] [learning] [obs]",
 		Short: "Re-deploy one or more Helm charts (no Vault init)",
 		Long: `Runs helm upgrade --install for the selected charts.
-Useful after changing values or image tags without re-running full setup.
 
-Targets: infra, app, learning, obs (default: all four)
+Targets: infra, data, app, learning, obs (default: all five)
 
 Examples:
-  k8s-manager deploy            # deploy infra + app + learning + obs
-  k8s-manager deploy app        # deploy only jeeb-app
-  k8s-manager deploy learning   # deploy only jeeb-learning
-  k8s-manager deploy infra obs  # deploy jeeb-infra and jeeb-obs`,
+  k8s-manager deploy              # deploy all charts
+  k8s-manager deploy app          # deploy only jeeb-app
+  k8s-manager deploy data         # deploy only jeeb-data (MongoDB + Keycloak)
+  k8s-manager deploy infra obs    # deploy jeeb-infra and jeeb-obs`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if credsFile == "" {
-				credsFile = defaultCredsPath()
-			}
 			for _, t := range args {
 				switch t {
-				case "infra", "app", "learning", "obs":
+				case "infra", "data", "app", "learning", "obs":
 				default:
-					return fmt.Errorf("unknown target %q — valid targets: infra, app, learning, obs", t)
+					return fmt.Errorf("unknown target %q — valid targets: infra, data, app, learning, obs", t)
 				}
 			}
-			creds, err := credentials.Load(credsFile)
+			path := resolvedCredsFile(*credsFile)
+			creds, err := loadCreds(path)
 			if err != nil {
-				return fmt.Errorf("load credentials: %w", err)
+				return err
 			}
-			runner := setup.NewRunner(creds, chartsDir, outputDir, dryRun)
-			return runner.Deploy(cmd.Context(), args)
+			cfg := config.LoadFromFile(path)
+			return setup.NewRunner(cfg, creds, *chartsDir, *outputDir, *dryRun).Deploy(cmd.Context(), args)
+		},
+	}
+}
+
+func newSeedCmd(credsFile *string, dryRun *bool) *cobra.Command {
+	var groovyPath string
+	var jenkinsURL string
+
+	cmd := &cobra.Command{
+		Use:   "seed",
+		Short: "Create and run the Jenkins seed job to generate all pipeline jobs",
+		Long: `Creates a Job DSL seed job in Jenkins and triggers it to generate the four
+jeeb pipeline jobs (backend, frontend, learning-backend, learning-frontend).
+
+Jenkins must already be running. The seed.groovy defaults to
+jenkins/jobs/seed.groovy auto-detected from the repo root.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := resolvedCredsFile(*credsFile)
+			creds, err := loadCreds(path)
+			if err != nil {
+				return err
+			}
+			cfg := config.LoadFromFile(path)
+			return jenkins.NewSeeder(cfg, creds, groovyPath, jenkinsURL, *dryRun).Run(cmd.Context())
 		},
 	}
 
-	cmd.Flags().StringVar(&credsFile, "credentials", "", "path to credentials.yaml")
-	cmd.Flags().StringVar(&chartsDir, "charts-dir", defaultChartsDir(), "path to k8s/charts directory")
-	cmd.Flags().StringVar(&outputDir, "output-dir", defaultOutputDir(), "directory for values-secrets.yaml")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print commands without executing them")
+	cmd.Flags().StringVar(&groovyPath, "groovy-path", defaultGroovyPath(), "path to seed.groovy")
+	cmd.Flags().StringVar(&jenkinsURL, "jenkins-url", "", "Jenkins URL (default: http://localhost:<nodeport>)")
 	return cmd
 }
 
-func newRancherCmd() *cobra.Command {
-	var dryRun bool
-
-	cmd := &cobra.Command{
+func newRancherCmd(credsFile *string, dryRun *bool) *cobra.Command {
+	return &cobra.Command{
 		Use:   "rancher",
 		Short: "Install cert-manager and Rancher (one-time, optional)",
 		Long: `Installs cert-manager and Rancher via external Helm repos.
 Run this once if you want the Rancher UI in addition to the main cluster.
 Rancher is NOT required for jeeb services to run.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d := rancher.NewDeployer(dryRun)
-			return d.Run(cmd.Context())
+			cfg := config.LoadFromFile(resolvedCredsFile(*credsFile))
+			return rancher.NewDeployer(cfg, *dryRun).Run(cmd.Context())
 		},
 	}
-
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print commands without executing them")
-	return cmd
 }
 
-func newValidateCmd() *cobra.Command {
-	var credsFile string
-
-	cmd := &cobra.Command{
+func newValidateCmd(credsFile *string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "validate",
 		Short: "Check that all credentials in credentials.yaml are filled",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if credsFile == "" {
-				credsFile = defaultCredsPath()
-			}
-			// Load always returns creds even when validation fails, so we can
-			// show the full table instead of just an error message.
-			creds, _ := credentials.Load(credsFile)
+			path := resolvedCredsFile(*credsFile)
+			creds, _ := credentials.Load(path)
 			if creds == nil {
-				return fmt.Errorf("could not parse %s", credsFile)
+				return fmt.Errorf("could not parse %s", path)
 			}
-			ok := validate.Run(creds)
-			if !ok {
+			if !validate.Run(creds) {
 				os.Exit(1)
 			}
 			return nil
 		},
 	}
-
-	cmd.Flags().StringVar(&credsFile, "credentials", "", "path to credentials.yaml")
-	return cmd
 }
 
-func newKongKeyCmd() *cobra.Command {
-	var credsFile string
-	var chartsDir string
-	var outputDir string
-	var dryRun bool
+func newKongKeyCmd(credsFile, chartsDir, outputDir *string, dryRun *bool) *cobra.Command {
 	var pemKey string
 
 	cmd := &cobra.Command{
 		Use:   "kong-key",
 		Short: "Update Kong's Keycloak public key and redeploy jeeb-infra",
-		Long: `Fetches the RS256 public key from Keycloak's JWKS endpoint (http://localhost:30081),
-saves it to credentials.yaml, and redeploys jeeb-infra so Kong picks up the change.
-
-Run this once after Keycloak is up. You can also supply the key directly with --key.`,
+		Long:  "Fetches the RS256 public key from Keycloak's JWKS endpoint, saves it to credentials.yaml, and redeploys jeeb-infra so Kong picks up the change.\n\nRun this once after Keycloak is up. You can also supply the key directly with --key.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if credsFile == "" {
-				credsFile = defaultCredsPath()
-			}
-			u := kongkey.NewUpdater(credsFile, chartsDir, outputDir, dryRun)
-			return u.Run(cmd.Context(), pemKey)
+			path := resolvedCredsFile(*credsFile)
+			cfg := config.LoadFromFile(path)
+			return kongkey.NewUpdater(cfg, path, *chartsDir, *outputDir, *dryRun).
+				Run(cmd.Context(), pemKey)
 		},
 	}
 
-	cmd.Flags().StringVar(&credsFile, "credentials", "", "path to credentials.yaml")
-	cmd.Flags().StringVar(&chartsDir, "charts-dir", defaultChartsDir(), "path to k8s/charts directory")
-	cmd.Flags().StringVar(&outputDir, "output-dir", defaultOutputDir(), "directory for values-secrets.yaml")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print commands without executing them")
 	cmd.Flags().StringVar(&pemKey, "key", "", "PEM public key to use instead of fetching from Keycloak")
-
 	return cmd
 }
 
@@ -299,4 +259,59 @@ func newLogsCmd(kubeconfig *string) *cobra.Command {
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "stream logs continuously")
 	cmd.Flags().Int64Var(&tail, "tail", 100, "number of recent lines to show")
 	return cmd
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+func loadCreds(credsFile string) (*credentials.Credentials, error) {
+	path := resolvedCredsFile(credsFile)
+	creds, err := credentials.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("load credentials from %s: %w\n\nCopy env/credentials.yaml.example → env/credentials.yaml and fill all values", path, err)
+	}
+	return creds, nil
+}
+
+func resolvedCredsFile(flag string) string {
+	if flag != "" {
+		return flag
+	}
+	return defaultCredsPath()
+}
+
+func defaultCredsPath() string {
+	exe, _ := os.Executable()
+	return filepath.Join(filepath.Dir(exe), "env", "credentials.yaml")
+}
+
+func defaultChartsDir() string {
+	exe, _ := os.Executable()
+	dir := filepath.Dir(exe)
+	for i := 0; i < 4; i++ {
+		candidate := filepath.Join(dir, "k8s", "charts")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		dir = filepath.Dir(dir)
+	}
+	return filepath.Join("k8s", "charts")
+}
+
+func defaultGroovyPath() string {
+	exe, _ := os.Executable()
+	dir := filepath.Dir(exe)
+	for i := 0; i < 4; i++ {
+		candidate := filepath.Join(dir, "jenkins", "jobs", "seed.groovy")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		dir = filepath.Dir(dir)
+	}
+	return filepath.Join("jenkins", "jobs", "seed.groovy")
+}
+
+func defaultOutputDir() string {
+	exe, _ := os.Executable()
+	_ = runtime.GOOS
+	return filepath.Dir(exe)
 }

@@ -27,6 +27,17 @@ logs/
 *.pem
 *.key
 
+# Lock files (large, never useful as context)
+go.sum
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Helm downloaded dependencies
+charts/*/charts/
+*.tgz
+.helm/
+
 # Test artifacts
 coverage/
 *.cover

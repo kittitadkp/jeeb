@@ -17,6 +17,15 @@ type Credentials struct {
 	JenkinsNexusPAT      string
 	JenkinsSonarToken    string
 
+	// Repo URLs — default to https://github.com/<githubUser>/<conventional-name>.git
+	JenkinsGithubCredsId       string
+	JenkinsJenkinsRepo         string
+	JenkinsK8sRepo             string
+	JenkinsBackendRepo         string
+	JenkinsFrontendRepo        string
+	JenkinsLearningBackendRepo  string
+	JenkinsLearningFrontendRepo string
+
 	KeycloakAdminUser     string
 	KeycloakAdminPassword string
 
@@ -35,12 +44,19 @@ type Credentials struct {
 // credentialsFile mirrors the structure of credentials.yaml.
 type credentialsFile struct {
 	Jenkins struct {
-		AdminPassword string `yaml:"adminPassword"`
-		GithubUser    string `yaml:"githubUser"`
-		GithubPat     string `yaml:"githubPat"`
-		NexusUser     string `yaml:"nexusUser"`
-		NexusPat      string `yaml:"nexusPat"`
-		SonarToken    string `yaml:"sonarToken"`
+		AdminPassword       string `yaml:"adminPassword"`
+		GithubUser          string `yaml:"githubUser"`
+		GithubPat           string `yaml:"githubPat"`
+		NexusUser           string `yaml:"nexusUser"`
+		NexusPat            string `yaml:"nexusPat"`
+		SonarToken          string `yaml:"sonarToken"`
+		GithubCredsId       string `yaml:"githubCredsId"`
+		JenkinsRepo         string `yaml:"jenkinsRepo"`
+		K8sRepo             string `yaml:"k8sRepo"`
+		BackendRepo         string `yaml:"backendRepo"`
+		FrontendRepo        string `yaml:"frontendRepo"`
+		LearningBackendRepo  string `yaml:"learningBackendRepo"`
+		LearningFrontendRepo string `yaml:"learningFrontendRepo"`
 	} `yaml:"jenkins"`
 	Keycloak struct {
 		AdminUser     string `yaml:"adminUser"`
@@ -75,6 +91,8 @@ func Load(path string) (*Credentials, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
+	ghBase := "https://github.com/" + f.Jenkins.GithubUser
+
 	c := &Credentials{
 		JenkinsAdminPassword:   f.Jenkins.AdminPassword,
 		JenkinsGithubUser:      f.Jenkins.GithubUser,
@@ -82,6 +100,15 @@ func Load(path string) (*Credentials, error) {
 		JenkinsNexusUser:       f.Jenkins.NexusUser,
 		JenkinsNexusPAT:        f.Jenkins.NexusPat,
 		JenkinsSonarToken:      f.Jenkins.SonarToken,
+
+		JenkinsGithubCredsId:        coa(f.Jenkins.GithubCredsId, "github-creds"),
+		JenkinsJenkinsRepo:          coa(f.Jenkins.JenkinsRepo, ghBase+"/jeeb-jenkins.git"),
+		JenkinsK8sRepo:              coa(f.Jenkins.K8sRepo, ghBase+"/jeeb.git"),
+		JenkinsBackendRepo:          coa(f.Jenkins.BackendRepo, ghBase+"/jeeb-backend.git"),
+		JenkinsFrontendRepo:         coa(f.Jenkins.FrontendRepo, ghBase+"/jeeb-frontend.git"),
+		JenkinsLearningBackendRepo:  coa(f.Jenkins.LearningBackendRepo, ghBase+"/learning-backend.git"),
+		JenkinsLearningFrontendRepo: coa(f.Jenkins.LearningFrontendRepo, ghBase+"/learning-frontend.git"),
+
 		KeycloakAdminUser:      f.Keycloak.AdminUser,
 		KeycloakAdminPassword:  f.Keycloak.AdminPassword,
 		MongoDBUsername:        f.MongoDB.Username,
@@ -118,6 +145,13 @@ func (c *Credentials) OptionalFields() map[string]string {
 		"jenkins.sonarToken":     c.JenkinsSonarToken,
 		"kong.keycloakPublicKey": c.KongKeycloakPublicKey,
 	}
+}
+
+func coa(v, def string) string {
+	if v != "" {
+		return v
+	}
+	return def
 }
 
 func (c *Credentials) validate() error {
