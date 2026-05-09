@@ -1,5 +1,5 @@
 global:
-  env: dev
+  env: develop
   namespace: jeeb-dev
   domain: jeeb-dev.local
   imageTag: latest

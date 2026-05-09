@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -635,10 +636,16 @@ func (r *Runner) configureVault(ctx context.Context) error {
 	token := init.RootToken
 
 	mongoURI := func(db string) string {
-		return fmt.Sprintf("mongodb://%s:%s@%s/%s?authSource=admin",
-			r.creds.MongoDBUsername, r.creds.MongoDBPassword, r.cfg.MongoHost, db)
+		u := &url.URL{
+			Scheme: "mongodb",
+			User:   url.UserPassword(r.creds.MongoDBUsername, r.creds.MongoDBPassword),
+			Host:   r.cfg.MongoHost,
+			Path:   "/" + db,
+			RawQuery: "authSource=admin",
+		}
+		return u.String()
 	}
-	keycloakURL := fmt.Sprintf("http://%s", r.cfg.KeycloakHost)
+	keycloakURL := r.cfg.KeycloakHostnameURL
 	keycloakPublic := fmt.Sprintf("http://localhost:%d", r.cfg.KeycloakNodePort)
 	backendPublic := fmt.Sprintf("http://localhost:%d", r.cfg.BackendNodePort)
 	learningPublic := fmt.Sprintf("http://localhost:%d", r.cfg.LearningNodePort)
@@ -657,7 +664,7 @@ func (r *Runner) configureVault(ctx context.Context) error {
 		{r.cfg.VaultPathFrontend, "VITE_KEYCLOAK_REALM", r.cfg.KeycloakRealm},
 		{r.cfg.VaultPathFrontend, "VITE_KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
 		{r.cfg.VaultPathFrontend, "VITE_API_URL", backendPublic},
-		// learning backend
+		// learning-backend
 		{r.cfg.VaultPathLearningBackend, "PORT", "8080"},
 		{r.cfg.VaultPathLearningBackend, "LOG_LEVEL", "INFO"},
 		{r.cfg.VaultPathLearningBackend, "MONGO_DATABASE", "jeeb_learning"},
@@ -665,7 +672,7 @@ func (r *Runner) configureVault(ctx context.Context) error {
 		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_URL", keycloakURL},
 		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_REALM", r.cfg.KeycloakRealm},
 		{r.cfg.VaultPathLearningBackend, "KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},
-		// learning frontend
+		// learning-frontend
 		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_URL", keycloakPublic},
 		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_REALM", r.cfg.KeycloakRealm},
 		{r.cfg.VaultPathLearningFrontend, "VITE_KEYCLOAK_CLIENT_ID", r.cfg.KeycloakClientID},

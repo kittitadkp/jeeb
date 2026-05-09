@@ -24,8 +24,9 @@ type ClusterConfig struct {
 	KeycloakClientID string
 	KongIssuer       string
 
-	MongoHost    string // in-cluster hostname:port
-	KeycloakHost string // in-cluster hostname:port
+	MongoHost           string // in-cluster hostname:port
+	KeycloakHost        string // in-cluster hostname:port
+	KeycloakHostnameURL string // public URL Keycloak advertises as issuer base (e.g. http://auth.jeeb-dev.local)
 
 	// NodePorts — match k8s/charts/*/values.yaml
 	MongoNodePort        int // 30017
@@ -84,10 +85,11 @@ type clusterFile struct {
 			Addr string `yaml:"addr"`
 		} `yaml:"vault"`
 		Keycloak struct {
-			Realm    string `yaml:"realm"`
-			ClientID string `yaml:"clientId"`
-			Host     string `yaml:"host"`
-			NodePort int    `yaml:"nodePort"`
+			Realm       string `yaml:"realm"`
+			ClientID    string `yaml:"clientId"`
+			Host        string `yaml:"host"`
+			HostnameURL string `yaml:"hostnameUrl"`
+			NodePort    int    `yaml:"nodePort"`
 		} `yaml:"keycloak"`
 		Kong struct {
 			Issuer   string `yaml:"issuer"`
@@ -156,9 +158,10 @@ func LoadFromFile(path string) *ClusterConfig {
 		VaultPod:  coalesce(c.Vault.Pod, "vault-0"),
 		VaultAddr: coalesce(c.Vault.Addr, "http://127.0.0.1:8200"),
 
-		KeycloakRealm:    coalesce(c.Keycloak.Realm, "jeeb"),
-		KeycloakClientID: coalesce(c.Keycloak.ClientID, "jeeb-app"),
-		KongIssuer:       coalesce(c.Kong.Issuer, "http://auth.jeeb-dev.local/realms/jeeb"),
+		KeycloakRealm:       coalesce(c.Keycloak.Realm, "jeeb"),
+		KeycloakClientID:    coalesce(c.Keycloak.ClientID, "jeeb-app"),
+		KongIssuer:          coalesce(c.Kong.Issuer, "http://auth.jeeb-dev.local/realms/jeeb"),
+		KeycloakHostnameURL: coalesce(c.Keycloak.HostnameURL, "http://auth.jeeb-dev.local"),
 
 		MongoHost:    coalesce(c.Mongo.Host, "mongodb.jeeb-dev.svc.cluster.local:27017"),
 		KeycloakHost: coalesce(c.Keycloak.Host, "keycloak.jeeb-dev.svc.cluster.local:8080"),
