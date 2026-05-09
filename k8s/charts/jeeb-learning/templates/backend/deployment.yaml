@@ -32,7 +32,7 @@ spec:
             "vaultAddr"  .Values.infra.vaultAddr) | nindent 8 }}
 
         - name: learning-backend
-          image: {{ .Values.global.imageRegistry }}/jeeb/learning:{{ .Values.backend.imageTag }}
+          image: {{ .Values.global.imageRegistry }}/jeeb/learning-backend:{{ .Values.backend.imageTag }}
           command: ["/bin/sh", "-c"]
           args:
             - |
