@@ -604,18 +604,64 @@
       "id": "6ff9dec0-ba9b-45d2-94c3-0e099bb59d35",
       "clientId": "jeeb-app",
       "name": "Jeeb App",
-      "rootUrl": "http://localhost:3000",
-      "baseUrl": "http://localhost:3000",
+      "rootUrl": "http://jeeb-dev.local",
+      "baseUrl": "http://jeeb-dev.local",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://jeeb-dev.local/*",
+        "http://jeeb-dev.local/*",
+        "https://jeeb-dev.local/*"
+      ],
+      "webOrigins": [
+        "http://jeeb-dev.local",
+        "https://jeeb-dev.local"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": { "post.logout.redirect.uris": "http://jeeb-dev.local/*" },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "clientId": "learning-app",
+      "name": "Learning App",
+      "rootUrl": "http://learning.jeeb-dev.local",
+      "baseUrl": "http://learning.jeeb-dev.local",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://learning.jeeb-dev.local/*",
         "https://learning.jeeb-dev.local/*"
       ],
       "webOrigins": [
-        "https://jeeb-dev.local",
+        "http://learning.jeeb-dev.local",
         "https://learning.jeeb-dev.local"
       ],
       "notBefore": 0,
@@ -628,7 +674,7 @@
       "publicClient": true,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
-      "attributes": { "post.logout.redirect.uris": "http://localhost:3000/*" },
+      "attributes": { "post.logout.redirect.uris": "http://learning.jeeb-dev.local/*" },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
