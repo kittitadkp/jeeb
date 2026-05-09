@@ -29,6 +29,7 @@ spec:
 
         - name: frontend
           image: {{ .Values.global.imageRegistry }}/jeeb/frontend:{{ .Values.frontend.imageTag }}
+          imagePullPolicy: {{ .Values.frontend.pullPolicy }}
           env:
             - name: VAULT_ENV_FILE
               value: "/app/env/{{ $envFile }}"

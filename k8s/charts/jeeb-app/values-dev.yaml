@@ -18,6 +18,7 @@ backend:
     envFile: .env.develop
 
 frontend:
+  pullPolicy: Always
   vault:
     path: secret/data/jeeb/frontend/develop
     envFile: .env.develop

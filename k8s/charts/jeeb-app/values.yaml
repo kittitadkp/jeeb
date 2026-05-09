@@ -34,6 +34,7 @@ frontend:
   replicas: 1
   nodePort: 30000
   imageTag: latest
+  pullPolicy: IfNotPresent
   vaultImage: hashicorp/vault:1.17
   vault:
     path: secret/data/jeeb/frontend/develop
