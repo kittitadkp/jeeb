@@ -1,34 +1,25 @@
 # Jeeb Documentation
 
-## Structure
+This documentation set follows the current implementation in the codebase. If a document conflicts with code, treat the code as authoritative and update the document.
 
-```
-docs/
-  architecture/    # System design, patterns
-  api/             # API specs, contracts
-  backend/         # Go backend specs
-  features/        # Feature specs per module
-  frontend/        # UI specs, design system
-  guides/          # How-to guides
-  troubleshooting/ # Error solutions
-  decisions/       # ADRs (Architecture Decision Records)
-```
+## Start here
 
-## Quick Links
+- [architecture/overview.md](architecture/overview.md)
+- [api/endpoints.md](api/endpoints.md)
+- [guides/development.md](guides/development.md)
+- [guides/testing.md](guides/testing.md)
+- [guides/deployment.md](guides/deployment.md)
+- [guides/new-cluster-setup.md](guides/new-cluster-setup.md)
+- [troubleshooting/README.md](troubleshooting/README.md)
 
-- [Architecture Overview](architecture/overview.md)
-- [API Reference](api/endpoints.md)
-- [Backend Spec](backend/spec.md)
-- [Development Guide](guides/development.md)
-- [Deployment Guide](guides/deployment.md)
-- [Troubleshooting](troubleshooting/README.md)
+## Reference sections
 
+- `backend/`: backend service behavior and boundaries
+- `frontend/`: frontend runtime model and limitations
+- `features/`: implementation notes by feature area
+- `decisions/`: architectural decisions that still match the code
 
- Ask me to write a plan to a file, e.g.:                                                 
-   
-  ▎ "save this plan to docs/plans/feature-name.md"                                        
-                  
-  Then in a new session, tell me:
+## Scope notes
 
-  ▎ "continue the plan in docs/plans/feature-name.md"
-
+- Assistant-only files such as `CLAUDE.md` are not part of the product documentation set.
+- Historical plans and prompt-engineering notes that do not describe runtime behavior have been removed from the maintained docs path.

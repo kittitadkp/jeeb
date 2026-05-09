@@ -1,98 +1,22 @@
-# Go Backend Troubleshooting
+# Backend Troubleshooting
 
-## Module not found
+## Main backend does not start
 
-**Error:**
-```
-cannot find module providing package github.com/xxx
-```
+- Check `backend/env/.env.local` or `GO_ENV` selection.
+- Confirm MongoDB on `localhost:30017`.
+- Confirm Keycloak on `http://host.docker.internal:30081`.
 
-**Solution:**
-```bash
-go mod tidy
-go mod download
-```
+## `401 unauthorized`
 
----
+- Verify the frontend is sending a bearer token.
+- Check that the token issuer matches the configured Keycloak realm.
+- For the learning backend, confirm whether `UPSTREAM_AUTH` should be `true` or `false`.
 
-## Nil pointer dereference
+## `503 calendar integration not configured`
 
-**Error:**
-```
-panic: runtime error: invalid memory address or nil pointer dereference
-```
+This is expected in the current main backend. `POST /events/{id}/sync` is exposed, but the service is started with `NewEventUseCase(eventRepo, nil)`.
 
-**Cause:**
-Accessing uninitialized pointer/interface.
+## Metrics confusion
 
-**Solution:**
-- Check if dependency injection wired correctly
-- Verify repository/service initialization in `cmd/`
-- Add nil checks before access
-
----
-
-## Context deadline exceeded
-
-**Error:**
-```
-context deadline exceeded
-```
-
-**Cause:**
-Operation took longer than context timeout.
-
-**Solution:**
-- Increase timeout for slow operations
-- Check MongoDB connection
-- Check external API latency
-
----
-
-## Port binding failed
-
-**Error:**
-```
-listen tcp :8080: bind: address already in use
-```
-
-**Solution:**
-```bash
-# Find and kill process
-netstat -ano | findstr :8080
-taskkill /PID <pid> /F
-```
-
----
-
-## JSON marshal/unmarshal error
-
-**Error:**
-```
-json: cannot unmarshal string into Go struct field
-```
-
-**Cause:**
-Type mismatch between JSON and struct.
-
-**Solution:**
-- Check struct tags match JSON keys
-- Verify field types (string vs int, etc.)
-- Use `json.RawMessage` for dynamic fields
-
----
-
-## Import cycle
-
-**Error:**
-```
-import cycle not allowed
-```
-
-**Cause:**
-Package A imports B, B imports A.
-
-**Solution:**
-- Move shared types to separate package
-- Use interfaces to break dependency
-- Review architecture layers
+- Main backend: `GET /metrics` exists.
+- Learning backend: deployment has scrape annotations, but the service does not expose `/metrics`.

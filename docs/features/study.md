@@ -1,27 +1,19 @@
-# Study Module
+# Study Feature
 
-## Domain
+## Main tracker study
 
-```go
-type StudySession struct {
-    ID        string
-    UserID    string
-    Subject   string
-    Duration  time.Duration
-    Notes     string
-    CreatedAt time.Time
-}
-```
+### API
 
-## Use Cases
+- `GET|POST /study/`
+- `GET /study/stats`
+- `GET|PUT|DELETE /study/{id}`
 
-- CreateStudySession
-- ListStudySessions
-- GetStudyStats
-- SetStudyReminder
+### Data model
 
-## Tracking
+- `subject`: required
+- `duration`: required, greater than `0`
+- `notes`: optional
 
-- Total hours per subject
-- Daily/weekly goals
-- Streak tracking
+## Learning app
+
+The learning application is a separate feature set. See [learning.md](learning.md) for topic, item, and progress behavior.

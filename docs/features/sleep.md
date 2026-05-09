@@ -1,27 +1,18 @@
-# Sleep Module
+# Sleep Feature
 
-## Domain
+## API
 
-```go
-type SleepRecord struct {
-    ID        string
-    UserID    string
-    StartTime time.Time
-    EndTime   time.Time
-    Quality   int  // 1-5
-    Notes     string
-}
-```
+- `GET|POST /sleep/`
+- `GET /sleep/stats`
+- `GET|PUT|DELETE /sleep/{id}`
 
-## Use Cases
+## Data model
 
-- LogSleep
-- GetSleepHistory
-- GetSleepStats
-- SetBedtimeReminder
+- `start_time`: required timestamp
+- `end_time`: required timestamp
+- `quality`: required integer from `1` to `5`
+- `notes`: optional
 
-## Metrics
+## Stats
 
-- Average duration
-- Sleep quality trends
-- Consistency score
+The backend returns weekly and monthly totals plus `avg_duration_minutes` and `avg_quality`.

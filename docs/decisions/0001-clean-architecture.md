@@ -1,16 +1,19 @@
-# ADR-0001: Clean Architecture
+# ADR 0001: Layered Go Services
 
 ## Status
+
 Accepted
 
 ## Context
-Need maintainable, testable codebase with clear boundaries.
+
+The main backend is organized explicitly around domain, use case, port, and adapter layers. The learning backend uses a similar split, though with a smaller surface area.
 
 ## Decision
-Use Clean Architecture with hexagonal/ports-and-adapters pattern.
+
+Keep business logic in Go use cases and isolate transport and persistence concerns in adapters.
 
 ## Consequences
-- (+) Easy to test (mock ports)
-- (+) Swap implementations without changing business logic
-- (+) Clear dependency direction
-- (-) More boilerplate initially
+
+- HTTP handlers remain thin and mostly validate or map requests
+- MongoDB repositories stay behind output ports
+- Feature work in the main backend should continue to flow through `domain -> usecase -> port -> adapter`

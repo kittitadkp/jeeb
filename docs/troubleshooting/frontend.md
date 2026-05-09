@@ -1,101 +1,21 @@
-# React Frontend Troubleshooting
+# Frontend Troubleshooting
 
-## Module not found
+## App loads but API calls fail
 
-**Error:**
-```
-Module not found: Can't resolve 'xxx'
-```
+- Main frontend uses `VITE_API_URL`, not `/api`, by default.
+- Check `frontend/env/.env.local` and confirm `http://localhost:30080` is reachable.
+- Learning frontend defaults to `http://localhost:30088/learning`.
 
-**Solution:**
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
+## Login loop or blank screen after login
 
----
+- Confirm Keycloak is reachable on the configured URL.
+- Check the client ID and redirect URLs in the realm export.
+- For local cluster access, verify `.local` DNS or use the exposed NodePort directly.
 
-## CORS error
+## Changes to frontend env values do not take effect in Kubernetes
 
-**Error:**
-```
-Access to fetch blocked by CORS policy
-```
+That is current behavior. The deployed Nginx images serve a static build and do not read the Vault-rendered env files mounted into the pods.
 
-**Cause:**
-Backend not allowing frontend origin.
+## Goals, Events, or Settings do not persist
 
-**Solution:**
-- Add CORS middleware to Go backend
-- Check `Access-Control-Allow-Origin` header
-- Verify API URL in frontend config
-
----
-
-## Invalid hook call
-
-**Error:**
-```
-Invalid hook call. Hooks can only be called inside of a function component.
-```
-
-**Cause:**
-- Hook called outside component
-- Multiple React versions
-- Rules of hooks violated
-
-**Solution:**
-```bash
-npm ls react  # Check for duplicate React
-```
-- Ensure hooks at top level of component
-- Don't call hooks in conditions/loops
-
----
-
-## State not updating
-
-**Cause:**
-- Mutating state directly
-- Async state update
-
-**Solution:**
-```jsx
-// Wrong
-state.items.push(item)
-
-// Correct
-setItems([...items, item])
-```
-
----
-
-## useEffect infinite loop
-
-**Cause:**
-Missing or wrong dependency array.
-
-**Solution:**
-```jsx
-// Wrong - runs every render
-useEffect(() => { fetchData() })
-
-// Correct - runs once
-useEffect(() => { fetchData() }, [])
-```
-
----
-
-## Build fails in production
-
-**Error:**
-```
-'X' is not defined
-```
-
-**Cause:**
-ESLint stricter in production build.
-
-**Solution:**
-- Fix all eslint warnings
-- Remove unused imports/variables
+That is current behavior. Those pages are local-state only.

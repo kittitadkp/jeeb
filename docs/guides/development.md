@@ -2,86 +2,36 @@
 
 ## Prerequisites
 
-- Docker Desktop with Kubernetes enabled
-- kubectl
-- Go 1.22+
-- Node.js 20+
+- Go 1.22 for `backend/` and `learning-backend/`
+- Go 1.23 for `k8s-manager/`
+- Node 20+
+- Docker Desktop with Kubernetes enabled for the full stack
 
-## Start All Services
+## Recommended local workflow
 
-```bash
-# Apply all k8s manifests in order
-bash k8s/apply.sh
+1. Bootstrap the local cluster with `k8s-manager`.
+2. Run the service you are changing from its module directory.
+3. Point the matching frontend at the expected NodePort or local backend URL.
+
+## Useful commands
+
+```powershell
+cd backend; go run ./cmd/api
+cd learning-backend; go run ./cmd/api
+cd learning-backend; go run ./cmd/seed
+cd frontend; npm ci; npm run dev:local
+cd learning-frontend; npm ci; npm run dev
+cd k8s-manager; go run ./cmd/k8s-manager check
 ```
 
-Or apply individually:
+## Environment model
 
-```bash
-kubectl apply -f k8s/00-namespace.yaml
-kubectl apply -f k8s/app/secrets.yaml
-kubectl apply -f k8s/app/mongodb/
-kubectl apply -f k8s/app/keycloak/
-kubectl apply -f k8s/app/backend/
-kubectl apply -f k8s/app/frontend/
-```
+- Go services read `env/.env.<GO_ENV>` and default to `env/.env.local`
+- Main frontend reads `env/.env.${APP_ENV}` and defaults to `local`
+- Learning frontend uses Vite env files and currently points at Kong by default
 
-## Services
+## Known local pitfalls
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:30000 |
-| Backend API | http://localhost:30080 |
-| Keycloak | http://localhost:30081 |
-| Jenkins | http://localhost:30082 |
-| Nexus UI | http://localhost:30083 |
-| SonarQube | http://localhost:30090 |
-
-## Useful kubectl Commands
-
-```bash
-# List all pods
-kubectl get pods -n jeeb
-
-# Watch pod status
-kubectl get pods -n jeeb -w
-
-# Logs
-kubectl logs -n jeeb deployment/backend
-kubectl logs -n jeeb deployment/frontend
-
-# Restart a deployment
-kubectl rollout restart deployment/backend -n jeeb
-
-# Describe a pod (for events/errors)
-kubectl describe pod -n jeeb <pod-name>
-
-# Shell into a pod
-kubectl exec -it -n jeeb deployment/backend -- sh
-```
-
-## Adding a Feature
-
-1. Define domain model in `backend/internal/domain/`
-2. Create use case in `backend/internal/usecase/`
-3. Define port interface in `backend/internal/port/`
-4. Implement adapter in `backend/internal/adapter/`
-5. Register route in `backend/internal/adapter/in/http/router.go`
-6. Add React hook in `frontend/src/hooks/`
-7. Build UI in `frontend/src/pages/` or `frontend/src/components/`
-
-## Testing
-
-```bash
-# Backend
-cd backend
-go test ./...
-
-# Frontend
-cd frontend
-npm test
-```
-
-## Code Style
-
-- Go: `gofmt`, `golangci-lint`
-- React: ESLint, Prettier
+- Main backend expects Keycloak on `host.docker.internal:30081` in the checked-in local env.
+- Main frontend defaults to `VITE_API_URL=http://localhost:30080`.
+- Learning backend and learning frontend use slightly inconsistent checked-in Keycloak client IDs; follow the file you are running unless you are fixing the mismatch intentionally.

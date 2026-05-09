@@ -1,16 +1,19 @@
-# ADR-0002: MongoDB as Primary Database
+# ADR 0002: MongoDB for Application Storage
 
 ## Status
+
 Accepted
 
 ## Context
-Need flexible schema for varied feature data (workouts, sleep, finance).
+
+Both backends persist document-shaped user data, event history, and flexible feature records. The current codebase already uses the MongoDB Go driver and Mongo-backed repositories throughout.
 
 ## Decision
-Use MongoDB for all persistent data.
+
+Keep MongoDB as the storage layer for both application domains.
 
 ## Consequences
-- (+) Flexible document schema per feature
-- (+) Easy to evolve data models
-- (+) Good Go driver support
-- (-) No ACID transactions across collections (acceptable for this use case)
+
+- Collections map closely to feature aggregates
+- Seed flows are simple document inserts
+- Pagination is implemented at the repository layer with shared request metadata

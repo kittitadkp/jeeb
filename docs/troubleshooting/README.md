@@ -1,28 +1,25 @@
 # Troubleshooting
 
-Quick reference for common errors.
+Use this section when the current implementation does not match expected local or cluster behavior.
 
-## Index
+## Quick triage
 
-- [Docker](docker.md)
-- [Go Backend](backend.md)
-- [React Frontend](frontend.md)
-- [MongoDB](mongodb.md)
-- [Keycloak Auth](keycloak.md)
-
-## Adding New Errors
-
-Use this template:
-
-```markdown
-## Error Title
-
-**Error:**
-<paste error message>
-
-**Cause:**
-<why it happens>
-
-**Solution:**
-<how to fix>
+```powershell
+cd k8s-manager
+go run ./cmd/k8s-manager check
+go run ./cmd/k8s-manager maintain
 ```
+
+## Focus areas
+
+- [backend.md](backend.md)
+- [frontend.md](frontend.md)
+- [keycloak.md](keycloak.md)
+- [mongodb.md](mongodb.md)
+- [docker.md](docker.md)
+
+## Common facts
+
+- There is no maintained root Docker Compose workflow.
+- Main backend metrics live at `/metrics`; learning-backend has no matching endpoint.
+- Frontend runtime config is mostly build-time config today.

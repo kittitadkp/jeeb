@@ -1,82 +1,43 @@
 # Deployment Guide
 
-## Prerequisites
+## Supported path
 
-- Docker Desktop with Kubernetes enabled
-- kubectl configured (`kubectl cluster-info`)
-- Nexus running at `localhost:30050` (Docker registry)
+The maintained deployment path is Kubernetes with Helm, Jenkins, Nexus, Vault, and Keycloak. There is no current root Docker Compose deployment flow.
 
-## Apply All Manifests
+## Release flow
 
-```bash
-bash k8s/apply.sh
-```
+1. Jenkins checks out the service repository and the top-level `k8s` repository.
+2. Optional test and SonarQube stages run when `SKIP_SONAR=false`.
+3. Kaniko builds and pushes images to the Nexus registry.
+4. On `main`, Jenkins runs `helm upgrade --install` and waits for rollout.
 
-## Environment Variables (Backend)
+## Branch behavior
 
-Managed via `k8s/app/backend/configmap.yaml` and `k8s/app/secrets.yaml`.
+- `main`: build, push, and deploy
+- `develop`: build and push only
+- other branches: no image publish or deployment through the shared pipeline
 
-| Variable | Source | Description |
-|----------|--------|-------------|
-| `MONGO_URI` | Secret `mongo-secret` | MongoDB connection string |
-| `KEYCLOAK_URL` | ConfigMap | Keycloak base URL |
-| `KEYCLOAK_REALM` | ConfigMap | Auth realm |
-| `KEYCLOAK_CLIENT_ID` | ConfigMap | OAuth client ID |
+## Chart mapping
 
-## CI/CD (Jenkins)
+| Service | Helm chart | Values key |
+|---|---|---|
+| `backend` | `jeeb-app` | `backend.imageTag` |
+| `frontend` | `jeeb-app` | `frontend.imageTag` |
+| `learning-backend` | `jeeb-learning` | `backend.imageTag` |
+| `learning-frontend` | `jeeb-learning` | `frontend.imageTag` |
 
-Pipelines are defined in `jenkins/backend/Jenkinsfile` and `jenkins/frontend/Jenkinsfile`.
+## Secrets and config
 
-On every push to `main`:
-1. Jenkins polls SCM and detects the change
-2. Kubernetes pod agent spins up with the required containers
-3. Tests run, SonarQube analysis runs
-4. Kaniko builds and pushes image to Nexus (`localhost:30050/jeeb/<service>:latest`)
-5. `kubectl set image` updates the deployment
-6. `kubectl rollout status` waits for rollout to complete
+- Backends read Vault-rendered env files during container startup.
+- Frontends currently do not consume the mounted Vault env files.
+- Keycloak realm configuration is shipped in `k8s/charts/jeeb-data/files/realm-jeeb.json`.
 
-## Manual Image Build & Deploy
+## Manual rollout
 
-```bash
-# Build and push image to Nexus
-docker build -t localhost:30050/jeeb/backend:latest ./backend
-docker push localhost:30050/jeeb/backend:latest
+After pipelines have pushed images:
 
-# Update deployment
-kubectl set image deployment/backend backend=localhost:30050/jeeb/backend:latest -n jeeb
-kubectl rollout status deployment/backend -n jeeb
-```
-
-## Health Checks
-
-```bash
-# Backend
-curl http://localhost:30080/health
-
-# Check pod readiness
-kubectl get pods -n jeeb
-
-# Describe deployment for events
-kubectl describe deployment backend -n jeeb
-```
-
-## Secrets
-
-Secrets are defined in `k8s/app/secrets.yaml` (base64-encoded). Never commit real values — use placeholders and apply manually:
-
-```bash
-kubectl apply -f k8s/app/secrets.yaml
-```
-
-## Nexus Docker Registry
-
-Jenkins uses the in-cluster registry at `nexus.jeeb.svc.cluster.local:5000`.
-From your local machine use `localhost:30050`.
-
-```bash
-# Login
-docker login localhost:30050 -u admin
-
-# Pull an image
-docker pull localhost:30050/jeeb/backend:latest
+```powershell
+cd k8s-manager
+go run ./cmd/k8s-manager deploy app learning
+go run ./cmd/k8s-manager check
 ```

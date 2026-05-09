@@ -1,100 +1,83 @@
 # Jeeb
 
-Personal management app: workouts, study, sleep, finance, calendar notifications.
+Jeeb is a personal tracking workspace split across four runnable apps and a Kubernetes-first operations stack:
 
-## Prerequisites
+- `backend/`: main Go API for workouts, study, sleep, finance, calendar events, and seeded exercise master data
+- `frontend/`: main React app for the personal tracker UI
+- `learning-backend/`: Go API for topic, item, and learning-progress management
+- `learning-frontend/`: React app for the learning experience
 
-- Docker and Docker Compose installed
-- At least 4GB of available RAM (recommended)
+This repository is the umbrella workspace. Several subdirectories are also separate Git repositories and are referenced that way by Jenkins.
 
-## Quick Start
+## Repository layout
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd jeeb
-   ```
-
-2. Start all services:
-   ```bash
-   docker-compose up --build
-   ```
-
-   Or run in background:
-   ```bash
-   docker-compose up -d --build
-   ```
-
-3. Access the application:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8080
-   - Keycloak (Auth): http://localhost:8081
-   - MongoDB: localhost:27017
-
-## Services
-
-- **Frontend** (Port 3000): React application with TypeScript
-- **Backend** (Port 8080): Go API server with Clean Architecture
-- **MongoDB** (Port 27017): Database for storing application data
-- **Keycloak** (Port 8081): Authentication and authorization server
-
-## Environment Variables
-
-The application uses default environment variables for development. For production deployment, create appropriate `.env` files:
-
-- `backend/env/.env.docker` - Backend configuration
-- Environment variables in `docker-compose.yml` can be overridden
-
-Default credentials:
-- MongoDB: `jeeb/jeeb123`
-- Keycloak Admin: `admin/admin123`
-
-## Development
-
-### Running Individual Services
-
-```bash
-# Start only database and auth
-docker-compose up mongodb keycloak
-
-# Start backend only (requires mongodb and keycloak)
-docker-compose up backend
-
-# Start frontend only (requires backend)
-docker-compose up frontend
+```text
+backend/            Main API (Go 1.22, MongoDB, Keycloak)
+frontend/           Main UI (Vite, React 19, TypeScript)
+learning-backend/   Learning API (Go 1.22, MongoDB, Keycloak)
+learning-frontend/  Learning UI (Vite, React 19, TypeScript)
+k8s/                Helm charts, realm export, DNS/TLS manifests
+k8s-manager/        Cluster bootstrap and maintenance CLI
+jenkins/            Jenkins shared library, seed job, pipeline definitions
+docs/               Architecture, API, ops, feature, and troubleshooting docs
 ```
 
-### Logs
+## Local development
 
-```bash
-# View all logs
-docker-compose logs -f
+There is no root `docker-compose.yml`. The current workflow is either:
 
-# View specific service logs
-docker-compose logs -f backend
+1. Bootstrap the local Kubernetes stack with `k8s-manager`, then run apps against its NodePorts.
+2. Run services module-by-module and provide your own MongoDB and Keycloak instances that match the checked-in env files.
+
+Typical commands:
+
+```powershell
+cd backend; go run ./cmd/api
+cd frontend; npm ci; npm run dev:local
+cd learning-backend; go run ./cmd/api
+cd learning-frontend; npm ci; npm run dev
 ```
 
-### Stopping Services
+Validation commands:
 
-```bash
-# Stop all services
-docker-compose down
-
-# Stop and remove volumes (WARNING: This deletes all data)
-docker-compose down -v
+```powershell
+cd backend; go test ./...
+cd learning-backend; go test ./...
+cd k8s-manager; go test ./...
+cd frontend; npm run lint; npm run build
+cd learning-frontend; npm run lint; npm run build
 ```
 
-## API Documentation
+## Cluster workflow
 
-See `docs/api/endpoints.md` for API endpoint documentation.
+The supported deployment path is Kubernetes on Docker Desktop:
 
-## Architecture
+```powershell
+cd k8s-manager
+Copy-Item env/secrets.yaml.example env/secrets.yaml
+go run ./cmd/k8s-manager validate
+go run ./cmd/k8s-manager setup
+go run ./cmd/k8s-manager check
+```
 
-The application follows Clean Architecture principles:
-- Domain layer: Business entities and rules
-- Use case layer: Application logic
-- Adapter layer: External interfaces (HTTP, MongoDB, etc.)
+After bootstrap, Jenkins builds and publishes images to Nexus. App workloads are then rolled out with:
 
-## Troubleshooting
+```powershell
+go run ./cmd/k8s-manager deploy app learning
+```
 
-See `docs/troubleshooting/` for common issues and solutions.
+## Current implementation notes
+
+- Main backend exposes `/metrics`; learning-backend does not, even though its deployment has Prometheus scrape annotations.
+- Main backend wires event sync without a calendar provider, so `POST /events/{id}/sync` currently returns `503`.
+- `frontend/` uses `VITE_API_URL` directly. The Nginx `/api` proxy exists, but the app does not rely on it by default.
+- `Goals`, `Events`, and `Settings` pages in the main frontend are local-state UI only; they are not backed by the API.
+
+## Documentation map
+
+- [docs/README.md](docs/README.md)
+- [backend/README.md](backend/README.md)
+- [frontend/README.md](frontend/README.md)
+- [learning-backend/README.md](learning-backend/README.md)
+- [learning-frontend/README.md](learning-frontend/README.md)
+- [k8s-manager/README.md](k8s-manager/README.md)

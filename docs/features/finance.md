@@ -1,28 +1,20 @@
-# Finance Module
+# Finance Feature
 
-## Domain
+## API
 
-```go
-type Transaction struct {
-    ID        string
-    UserID    string
-    Amount    float64
-    Type      TransactionType  // income, expense
-    Category  string
-    Date      time.Time
-    Notes     string
-}
-```
+- `GET|POST /finance/`
+- `GET /finance/stats`
+- `GET /finance/categories`
+- `GET|PUT|DELETE /finance/{id}`
 
-## Use Cases
+## Data model
 
-- AddTransaction
-- ListTransactions
-- GetSpendingByCategory
-- GetMonthlyReport
-- SetBudgetAlert
+- `type`: `income` or `expense`
+- `amount`: required, greater than `0`
+- `category`: required
+- `date`: required timestamp
+- `notes`: optional
 
-## Categories
+## Stats
 
-Income: salary, freelance, investment
-Expense: food, transport, utilities, entertainment
+Finance stats include current-month `income`, `expense`, and `net`, plus totals grouped by category.

@@ -1,31 +1,20 @@
-# Workout Module
+# Workout Feature
 
-## Domain
+## Backing API
 
-```go
-type Workout struct {
-    ID        string
-    UserID    string
-    Type      WorkoutType  // strength, cardio, flexibility
-    Duration  time.Duration
-    Exercises []Exercise
-    CreatedAt time.Time
-}
-```
+- `GET|POST /workouts/`
+- `GET /workouts/stats`
+- `GET|PUT|DELETE /workouts/{id}`
+- `GET /master?category=exercise`
 
-## Use Cases
+## Data model
 
-- CreateWorkout
-- ListWorkouts
-- GetWorkoutStats
-- SyncToCalendar
+- `type`: `strength`, `cardio`, or `flexibility`
+- `duration`: required, greater than `0`
+- `exercises`: optional array with `name`, `sets`, `reps`, `weight`, `rest_seconds`
+- `notes`: optional
 
-## Repository Interface
+## Runtime notes
 
-```go
-type WorkoutRepository interface {
-    Save(ctx context.Context, w *Workout) error
-    FindByUserID(ctx context.Context, userID string) ([]*Workout, error)
-    FindByID(ctx context.Context, id string) (*Workout, error)
-}
-```
+- Dashboard and workout pages read persisted workout data.
+- Exercise reference data comes from the auto-seeded `master` collection.
