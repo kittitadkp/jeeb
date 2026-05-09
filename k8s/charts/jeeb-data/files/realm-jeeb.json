@@ -611,12 +611,12 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "http://localhost:3000/*",
-        "http://host.docker.internal:3000/*"
+        "https://jeeb-dev.local/*",
+        "https://learning.jeeb-dev.local/*"
       ],
       "webOrigins": [
-        "http://host.docker.internal:3000",
-        "http://localhost:3000"
+        "https://jeeb-dev.local",
+        "https://learning.jeeb-dev.local"
       ],
       "notBefore": 0,
       "bearerOnly": false,
