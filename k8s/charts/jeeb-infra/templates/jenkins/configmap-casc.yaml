@@ -72,15 +72,6 @@ data:
             steps {
               jobDsl {
                 scriptText('''
-                  import jenkins.model.Jenkins
-
-                  def stale = Jenkins.instance.getItem('seed')
-                  if (stale) { stale.delete() }
-
-                  folder('dev') {
-                    description('DEV environment pipelines')
-                  }
-
                   def pipelines = [
                     [name: 'jeeb-backend',           path: 'pipelines/backend/Jenkinsfile',           gitUrl: '{{ .Values.jenkins.repos.backend }}'],
                     [name: 'jeeb-frontend',          path: 'pipelines/frontend/Jenkinsfile',          gitUrl: '{{ .Values.jenkins.repos.frontend }}'],

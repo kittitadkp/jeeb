@@ -32,30 +32,22 @@ go run ./cmd/k8s-manager validate
 go run ./cmd/k8s-manager setup
 ```
 
-The `setup` command runs 20 steps in order:
+The `setup` command runs 12 steps in order:
 
 | # | Step |
 |---|------|
-| 1 | Pre-flight checks (cluster reachable, helm on PATH, clear stale Kong key) |
-| 2 | Remove stale files from previous run (`vault-init.json`, `values-secrets.yaml`) |
-| 3 | Generate `values-secrets.yaml` from `env/secrets.yaml` |
-| 4 | Install nginx ingress controller |
-| 5 | Install Rancher + cert-manager (skipped if already installed) |
-| 6 | Deploy `jeeb-data` — MongoDB, Keycloak |
-| 7 | Wait for Keycloak ready |
-| 8 | Fetch Kong RS256 key from Keycloak JWKS |
-| 9 | Deploy `jeeb-infra` — Vault, Jenkins, Nexus, SonarQube, Kong |
-| 10 | Wait for Kong ready |
-| 11 | Wait for Vault pod ready |
-| 12 | Initialize Vault → saves `vault-init.json` |
-| 13 | Store unseal keys in Kubernetes secret |
-| 14 | Unseal Vault |
-| 15 | Configure Vault (KV engine, policies, K8s auth roles) |
-| 16 | Initialize Nexus Docker registry |
-| 17 | Patch CoreDNS for `.local` DNS |
-| 18 | Wait for CoreDNS rollout |
-| 19 | Verify DNS for all `.local` domains |
-| 20 | Seed Jenkins (create seed job, generate pipeline jobs) |
+| 1 | Deploy `jeeb-infra` — Vault, Jenkins, Nexus, SonarQube, Kong |
+| 2 | Deploy `jeeb-data` — MongoDB, Keycloak |
+| 3 | Deploy `jeeb-app` — backend, frontend |
+| 4 | Deploy `jeeb-learning` |
+| 5 | Deploy `jeeb-obs` — Prometheus, Loki, Grafana |
+| 6 | Wait for Vault pod ready |
+| 7 | Initialize Vault → saves `vault-init.json` to `--output-dir` |
+| 8 | Store unseal keys → Kubernetes secret `vault-unseal-keys` |
+| 9 | Unseal Vault |
+| 10 | Configure Vault (KV engine, policies, K8s auth roles) |
+| 11 | Patch CoreDNS (detects ingress ClusterIP automatically) |
+| 12 | Seed Jenkins (create seed job, generate all pipeline jobs) |
 
 ## After setup
 
@@ -74,18 +66,56 @@ go run ./cmd/k8s-manager check
 ## Commands
 
 ```
-setup                     Bootstrap a new cluster end-to-end
-deploy [infra|data|app|learning|obs]  Re-deploy one or more charts
-seed                      Create/run Jenkins seed job
-kong-key                  Fetch Keycloak RS256 key and update Kong
-check                     Health check — pass/fail table for all services
-maintain                  Diagnose failures and print fix commands
-validate                  Check all secrets.yaml fields are filled
-namespace                 Create jeeb namespaces
-status [-n <ns>]          Show pod status
-restart <deployment>      Restart a deployment
-logs <deployment>         Stream logs from a deployment
-rancher                   Install cert-manager + Rancher (optional)
+setup                                      Bootstrap a new cluster end-to-end
+deploy [infra|data|app|learning|obs]       Re-deploy one or more charts (no Vault init)
+seed                                       Create/run Jenkins seed job
+kong-key                                   Fetch Keycloak RS256 key and update Kong
+check                                      Health check — pass/fail table for all services
+maintain                                   Diagnose failures and print fix commands
+validate                                   Check all secrets.yaml fields are filled
+namespace                                  Create jeeb namespaces
+status [-n <ns>]                           Show pod status
+restart <deployment>                       Restart a deployment
+logs <deployment>                          Stream logs from a deployment
+rancher                                    Install cert-manager + Rancher (optional)
+patch-jenkins-creds                        Patch jenkins-secret from secrets.yaml and restart Jenkins
+redeploy-jenkins                           Rollout-restart Jenkins and wait until healthy
+```
+
+### Command details
+
+**`deploy`** — re-run `helm upgrade --install` for selected charts; defaults to all five if no target given.
+
+```powershell
+go run ./cmd/k8s-manager deploy              # all charts
+go run ./cmd/k8s-manager deploy app          # jeeb-app only
+go run ./cmd/k8s-manager deploy infra obs    # jeeb-infra + jeeb-obs
+```
+
+**`logs`** — stream logs from a deployment.
+
+```powershell
+go run ./cmd/k8s-manager logs backend               # last 100 lines
+go run ./cmd/k8s-manager logs backend -f            # follow (stream continuously)
+go run ./cmd/k8s-manager logs backend --tail 500    # show last 500 lines
+go run ./cmd/k8s-manager logs backend -n jeeb-infra # different namespace
+```
+
+**`seed`** — create and run the Job DSL seed job in Jenkins.
+
+```powershell
+go run ./cmd/k8s-manager seed
+go run ./cmd/k8s-manager seed --groovy-path path/to/seed.groovy
+go run ./cmd/k8s-manager seed --jenkins-url http://localhost:30082
+```
+
+**`patch-jenkins-creds`** — updates `jenkins-secret` with current values from `secrets.yaml` and rolls Jenkins to pick them up. Patches all six keys: `admin-password`, `github-user`, `github-pat`, `nexus-user`, `nexus-password`, `sonar-token`.
+
+**`redeploy-jenkins`** — restarts the Jenkins deployment and waits for it to be ready (rollout status → `/login` poll).
+
+```powershell
+go run ./cmd/k8s-manager redeploy-jenkins
+go run ./cmd/k8s-manager redeploy-jenkins --timeout 10m
 ```
 
 ## Flags
@@ -99,6 +129,19 @@ rancher                   Install cert-manager + Rancher (optional)
 | `--dry-run` | false | Print commands without executing |
 | `--log-level` | `info` | Verbosity: `debug`, `info`, `warn`, `error` |
 | `--kubeconfig` | `~/.kube/config` | Path to kubeconfig |
+
+### Per-command flags
+
+| Command | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `status`, `restart`, `logs` | `-n`, `--namespace` | `jeeb-dev` | Target namespace |
+| `logs` | `-f`, `--follow` | false | Stream logs continuously |
+| `logs` | `--tail` | 100 | Number of recent lines to show |
+| `seed` | `--groovy-path` | auto-detected | Path to `seed.groovy` |
+| `seed` | `--jenkins-url` | `http://localhost:<nodeport>` | Jenkins URL |
+| `patch-jenkins-creds` | `-n`, `--namespace` | `jeeb-infra` | Namespace where Jenkins is deployed |
+| `redeploy-jenkins` | `-n`, `--namespace` | `jeeb-infra` | Namespace where Jenkins is deployed |
+| `redeploy-jenkins` | `--timeout` | `5m` | Rollout + health-check timeout |
 
 ## Service endpoints
 
@@ -129,14 +172,15 @@ k8s-manager/
     credentials/              Secrets loader (secrets.yaml parser)
     helm/                     helm upgrade --install wrapper
     healthcheck/              HTTP, DNS, Vault, pod health checks
-    jenkins/                  Jenkins seed job orchestrator
+    jenkins/                  Jenkins seed job orchestrator + credentials patcher
     kongkey/                  Keycloak RS256 key fetcher/updater
     kube/                     Kubernetes client (namespaces, pods, logs)
     logger/                   zerolog wrapper (Step, Info, Debug, Warn, Error)
     maintain/                 Diagnosis report with fix commands
     printer/                  Pod status table formatter
     rancher/                  cert-manager + Rancher deployer
-    setup/                    20-step bootstrap orchestrator
+    redeploy/                 Jenkins rollout-restart + health-check waiter
+    setup/                    12-step bootstrap orchestrator
     util/                     Shared: exec, HTTP polling, JWK→PEM
     validate/                 Credential completeness checker
   env/
@@ -165,6 +209,9 @@ go run ./cmd/k8s-manager --log-level debug setup
 
 # Refresh Kong key after Keycloak restart
 go run ./cmd/k8s-manager kong-key
+
+# Fix Jenkins credentials after secrets.yaml change
+go run ./cmd/k8s-manager patch-jenkins-creds
 ```
 
 > **vault-init.json** contains unseal keys and root token. Keep it safe — losing it means Vault cannot be unsealed after a pod restart.
