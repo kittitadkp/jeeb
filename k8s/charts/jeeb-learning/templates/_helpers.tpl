@@ -22,6 +22,12 @@ template {
   source      = "/vault/config/{{ .tplFile }}"
   destination = "/app/env/{{ .envFile }}"
   perms       = "0640"
+  {{- if .restartCmd }}
+  exec {
+    command = ["/bin/sh", "-c", "{{ .restartCmd }}"]
+    timeout = "30s"
+  }
+  {{- end }}
 }
 {{- end -}}
 
@@ -39,6 +45,9 @@ template {
       mountPath: /vault/config
     - name: vault-secrets
       mountPath: /app/env
+    - name: tools
+      mountPath: /tools
+      readOnly: true
   resources:
     requests:
       memory: 64Mi
@@ -53,10 +62,23 @@ template {
         - IPC_LOCK
 {{- end -}}
 
+{{- define "jeeb-learning.vaultKubectlInitContainer" -}}
+- name: kubectl-installer
+  image: bitnami/kubectl:latest
+  command: ["cp", "/opt/bitnami/kubectl/bin/kubectl", "/tools/kubectl"]
+  volumeMounts:
+    - name: tools
+      mountPath: /tools
+  securityContext:
+    allowPrivilegeEscalation: false
+{{- end -}}
+
 {{- define "jeeb-learning.vaultVolumes" -}}
 - name: vault-config
   configMap:
     name: {{ .configMapName }}
 - name: vault-secrets
+  emptyDir: {}
+- name: tools
   emptyDir: {}
 {{- end -}}

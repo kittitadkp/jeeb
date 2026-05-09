@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: learning-frontend-rollout-restarter
+  namespace: {{ .Values.global.namespace }}
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: ["learning-frontend"]
+  verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: learning-frontend-rollout-restarter
+  namespace: {{ .Values.global.namespace }}
+subjects:
+- kind: ServiceAccount
+  name: learning-frontend
+  namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: Role
+  name: learning-frontend-rollout-restarter
+  apiGroup: rbac.authorization.k8s.io

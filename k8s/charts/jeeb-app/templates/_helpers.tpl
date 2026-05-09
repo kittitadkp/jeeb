@@ -36,6 +36,12 @@ template {
   source      = "/vault/config/{{ .tplFile }}"
   destination = "/app/env/{{ .envFile }}"
   perms       = "0640"
+  {{- if .restartCmd }}
+  exec {
+    command = ["/bin/sh", "-c", "{{ .restartCmd }}"]
+    timeout = "30s"
+  }
+  {{- end }}
 }
 {{- end -}}
 
@@ -62,6 +68,9 @@ template {
       mountPath: /vault/config
     - name: vault-secrets
       mountPath: /app/env
+    - name: tools
+      mountPath: /tools
+      readOnly: true
   resources:
     requests:
       memory: 64Mi
@@ -77,6 +86,23 @@ template {
 {{- end -}}
 
 {{/*
+  jeeb-app.vaultKubectlInitContainer
+  -----------------------------------
+  Init container that copies kubectl into the shared /tools volume so
+  vault-agent can call "kubectl rollout restart" when secrets change.
+*/}}
+{{- define "jeeb-app.vaultKubectlInitContainer" -}}
+- name: kubectl-installer
+  image: bitnami/kubectl:latest
+  command: ["cp", "/opt/bitnami/kubectl/bin/kubectl", "/tools/kubectl"]
+  volumeMounts:
+    - name: tools
+      mountPath: /tools
+  securityContext:
+    allowPrivilegeEscalation: false
+{{- end -}}
+
+{{/*
   jeeb-app.vaultVolumes
   ---------------------
   Renders the two volumes needed by the vault-agent sidecar.
@@ -88,5 +114,7 @@ template {
   configMap:
     name: {{ .configMapName }}
 - name: vault-secrets
+  emptyDir: {}
+- name: tools
   emptyDir: {}
 {{- end -}}

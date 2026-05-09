@@ -26,6 +26,8 @@ spec:
       serviceAccountName: learning-backend
       imagePullSecrets:
         - name: nexus-pull-secret
+      initContainers:
+        {{- include "jeeb-learning.vaultKubectlInitContainer" . | nindent 8 }}
       containers:
         {{- include "jeeb-learning.vaultAgentContainer" (dict
             "vaultImage" .Values.backend.vaultImage

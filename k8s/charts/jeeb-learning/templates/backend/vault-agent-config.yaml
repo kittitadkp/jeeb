@@ -8,10 +8,11 @@ metadata:
 data:
   agent.hcl: |
     {{- include "jeeb-learning.vaultAgentHCL" (dict
-        "vaultAddr" .Values.infra.vaultAddr
-        "role"      .Values.backend.vault.role
-        "envFile"   $envFile
-        "tplFile"   $tplFile) | nindent 4 }}
+        "vaultAddr"   .Values.infra.vaultAddr
+        "role"        .Values.backend.vault.role
+        "envFile"     $envFile
+        "tplFile"     $tplFile
+        "restartCmd"  (printf "if [ -f /app/env/.vault-rendered ]; then /tools/kubectl rollout restart deployment/learning-backend -n %s; fi; touch /app/env/.vault-rendered" .Values.global.namespace)) | nindent 4 }}
 
   {{ $tplFile }}: |
     {{ "{{" }}- with secret "{{ .Values.backend.vault.path }}" -{{ "}}" }}

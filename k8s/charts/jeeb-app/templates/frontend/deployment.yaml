@@ -22,6 +22,8 @@ spec:
       serviceAccountName: frontend
       imagePullSecrets:
         - name: nexus-pull-secret
+      initContainers:
+        {{- include "jeeb-app.vaultKubectlInitContainer" . | nindent 8 }}
       containers:
         {{- include "jeeb-app.vaultAgentContainer" (dict
             "vaultImage" .Values.frontend.vaultImage

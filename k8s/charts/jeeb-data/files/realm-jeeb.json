@@ -612,11 +612,13 @@
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
         "http://jeeb-dev.local/*",
-        "https://jeeb-dev.local/*"
+        "https://jeeb-dev.local/*",
+        "http://localhost:3000/*"
       ],
       "webOrigins": [
         "http://jeeb-dev.local",
-        "https://jeeb-dev.local"
+        "https://jeeb-dev.local",
+        "http://localhost:3000"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -628,7 +630,7 @@
       "publicClient": true,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
-      "attributes": { "post.logout.redirect.uris": "http://jeeb-dev.local/*" },
+      "attributes": { "post.logout.redirect.uris": "http://jeeb-dev.local/*##https://jeeb-dev.local/*" },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
