@@ -17,6 +17,10 @@ vault {
   address = "{{ .vaultAddr }}"
 }
 
+template_config {
+  static_secret_render_interval = "{{ default "1m" .staticRenderInterval }}"
+}
+
 auto_auth {
   method "kubernetes" {
     mount_path = "auth/kubernetes"

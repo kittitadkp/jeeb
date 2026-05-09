@@ -18,6 +18,8 @@ spec:
     metadata:
       labels:
         app: frontend
+      annotations:
+        checksum/vault-config: {{ include (print $.Template.BasePath "/frontend/vault-agent-config.yaml") . | sha256sum }}
     spec:
       serviceAccountName: frontend
       imagePullSecrets:

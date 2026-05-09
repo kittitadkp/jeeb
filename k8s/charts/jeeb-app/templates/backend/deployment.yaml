@@ -22,6 +22,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
+        checksum/vault-config: {{ include (print $.Template.BasePath "/backend/vault-agent-config.yaml") . | sha256sum }}
     spec:
       serviceAccountName: backend
       imagePullSecrets:
