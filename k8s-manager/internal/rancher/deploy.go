@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	certManagerVersion = "v1.15.3"
-	rancherVersion     = "2.9.3"
+	certManagerVersion = "v1.16.5"
+	rancherVersion     = "2.13.3"
 )
 
 type Deployer struct {
