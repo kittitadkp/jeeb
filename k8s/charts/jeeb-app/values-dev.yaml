@@ -5,7 +5,7 @@ global:
   imageTag: latest
 
 keycloak:
-  hostnameUrl: http://auth.jeeb-dev.local
+  hostnameUrl: https://auth.jeeb-dev.local
 
 backend:
   vault:

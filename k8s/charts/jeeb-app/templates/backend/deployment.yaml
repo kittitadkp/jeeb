@@ -50,9 +50,15 @@ spec:
                 name: backend-config
           ports:
             - containerPort: 8080
+          env:
+            - name: SSL_CERT_FILE
+              value: /etc/ssl/jeeb/tls.crt
           volumeMounts:
             - name: vault-secrets
               mountPath: /app/env
+            - name: jeeb-tls
+              mountPath: /etc/ssl/jeeb
+              readOnly: true
           resources:
             requests:
               memory: 128Mi
@@ -76,3 +82,9 @@ spec:
 
       volumes:
         {{- include "jeeb-app.vaultVolumes" (dict "configMapName" "vault-agent-config") | nindent 8 }}
+        - name: jeeb-tls
+          secret:
+            secretName: jeeb-dev-tls
+            items:
+              - key: tls.crt
+                path: tls.crt

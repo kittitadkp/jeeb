@@ -8,6 +8,7 @@ data:
   Corefile: |
     .:53 {
         errors
+        
         health {
            lameduck 5s
         }

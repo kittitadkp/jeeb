@@ -8,6 +8,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - "learning.{{ .Values.ingress.domain }}"
+        - "learning-api.{{ .Values.ingress.domain }}"
+      secretName: jeeb-dev-tls
   rules:
     - host: learning.{{ .Values.ingress.domain }}
       http:

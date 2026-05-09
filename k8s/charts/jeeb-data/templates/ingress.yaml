@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Values.global.namespace }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - auth.{{ .Values.ingress.domain }}
+      secretName: jeeb-dev-tls
   rules:
     - host: auth.{{ .Values.ingress.domain }}
       http:

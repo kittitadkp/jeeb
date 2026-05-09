@@ -161,7 +161,7 @@ func LoadFromFile(path string) *ClusterConfig {
 		KeycloakRealm:       coalesce(c.Keycloak.Realm, "jeeb"),
 		KeycloakClientID:    coalesce(c.Keycloak.ClientID, "jeeb-app"),
 		KongIssuer:          coalesce(c.Kong.Issuer, "http://auth.jeeb-dev.local/realms/jeeb"),
-		KeycloakHostnameURL: coalesce(c.Keycloak.HostnameURL, "http://auth.jeeb-dev.local"),
+		KeycloakHostnameURL: coalesce(c.Keycloak.HostnameURL, "https://auth.jeeb-dev.local"),
 
 		MongoHost:    coalesce(c.Mongo.Host, "mongodb.jeeb-dev.svc.cluster.local:27017"),
 		KeycloakHost: coalesce(c.Keycloak.Host, "keycloak.jeeb-dev.svc.cluster.local:8080"),
