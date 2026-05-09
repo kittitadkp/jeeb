@@ -121,6 +121,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	steps := []step{
 		{"Pre-flight checks", r.preflight},
+		{"Remove stale files from previous run", r.removeStaleFiles},
 		{"Generate values-secrets.yaml from credentials", r.writeSecretsFileStep},
 		{"Install nginx ingress controller", r.ensureNginxIngress},
 		{"Install Rancher + cert-manager", r.ensureRancher},
@@ -202,22 +203,59 @@ func (r *Runner) preflight(ctx context.Context) error {
 		logger.Step("      context: %s", currentCtx)
 	}
 
-	// Warn if stale vault-init.json exists
-	vaultInitPath := filepath.Join(r.outputDir, "vault-init.json")
-	if _, err := os.Stat(vaultInitPath); err == nil {
-		logger.Warn("%s exists from a previous run. Vault init will be skipped. Delete it if this is a truly fresh cluster.", vaultInitPath)
-	}
-
 	// Verify helm is on PATH
 	if _, err := exec.LookPath("helm"); err != nil {
 		return fmt.Errorf("helm not found on PATH: %w", err)
 	}
 
+	// Clear stale Kong public key — Keycloak regenerates its RSA key pair on
+	// every fresh cluster, so any saved key is invalid after a reset.
+	if err := r.clearKongPublicKey(); err != nil {
+		logger.Warn("could not clear kong.keycloakPublicKey from secrets: %v", err)
+	} else {
+		logger.Step("      cleared stale kong.keycloakPublicKey (will be re-fetched from Keycloak)")
+	}
+
 	return nil
+}
+
+func (r *Runner) clearKongPublicKey() error {
+	data, err := os.ReadFile(r.secretsPath)
+	if err != nil {
+		return err
+	}
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	kong, ok := raw["kong"].(map[string]interface{})
+	if !ok || kong["keycloakPublicKey"] == "" {
+		return nil // nothing to clear
+	}
+	kong["keycloakPublicKey"] = ""
+	updated, err := yaml.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(r.secretsPath, updated, 0600)
 }
 
 func (r *Runner) writeSecretsFileStep(ctx context.Context) error {
 	return r.writeSecretsFile()
+}
+
+func (r *Runner) removeStaleFiles(ctx context.Context) error {
+	stale := []string{
+		filepath.Join(r.outputDir, "vault-init.json"),
+		filepath.Join(r.outputDir, "values-secrets.yaml"),
+	}
+	for _, path := range stale {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove %s: %w", path, err)
+		}
+		logger.Step("      removed %s", path)
+	}
+	return nil
 }
 
 // ── nginx ingress ─────────────────────────────────────────────────────────────

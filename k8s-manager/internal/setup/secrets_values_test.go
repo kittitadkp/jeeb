@@ -13,7 +13,7 @@ func TestGenerateSecretsValues(t *testing.T) {
 		JenkinsGithubUser:      "kittitadkp",
 		JenkinsGithubPAT:       "ghp_test",
 		JenkinsNexusUser:       "admin",
-		JenkinsNexusPAT:        "nexus_pass",
+		JenkinsNexusPassword:   "nexus_pass",
 		JenkinsSonarToken:      "squ_abc",
 		KeycloakAdminUser:      "admin",
 		KeycloakAdminPassword:  "kc_pass",

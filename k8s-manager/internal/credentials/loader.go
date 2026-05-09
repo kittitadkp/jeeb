@@ -14,7 +14,7 @@ type Credentials struct {
 	JenkinsGithubUser    string
 	JenkinsGithubPAT     string
 	JenkinsNexusUser     string
-	JenkinsNexusPAT      string
+	JenkinsNexusPassword      string
 	JenkinsSonarToken    string
 
 	// Repo URLs — default to https://github.com/<githubUser>/<conventional-name>.git
@@ -48,7 +48,7 @@ type credentialsFile struct {
 		GithubUser           string `yaml:"githubUser"`
 		GithubPat            string `yaml:"githubPat"`
 		NexusUser            string `yaml:"nexusUser"`
-		NexusPat             string `yaml:"nexusPat"`
+		NexusPassword        string `yaml:"nexusPassword"`
 		SonarToken           string `yaml:"sonarToken"`
 		GithubCredsId        string `yaml:"githubCredsId"`
 		JenkinsRepo          string `yaml:"jenkinsRepo"`
@@ -98,7 +98,7 @@ func Load(path string) (*Credentials, error) {
 		JenkinsGithubUser:    f.Jenkins.GithubUser,
 		JenkinsGithubPAT:     f.Jenkins.GithubPat,
 		JenkinsNexusUser:     f.Jenkins.NexusUser,
-		JenkinsNexusPAT:      f.Jenkins.NexusPat,
+		JenkinsNexusPassword:      f.Jenkins.NexusPassword,
 		JenkinsSonarToken:    f.Jenkins.SonarToken,
 
 		JenkinsGithubCredsId:        coa(f.Jenkins.GithubCredsId, "github-creds"),
@@ -142,7 +142,7 @@ func (c *Credentials) RequiredFields() map[string]string {
 func (c *Credentials) OptionalFields() map[string]string {
 	return map[string]string{
 		"jenkins.sonarToken":     c.JenkinsSonarToken,
-		"jenkins.nexusPat":       c.JenkinsNexusPAT,
+		"jenkins.nexusPassword":   c.JenkinsNexusPassword,
 		"kong.keycloakPublicKey": c.KongKeycloakPublicKey,
 	}
 }

@@ -361,7 +361,7 @@ func buildSeedJobXML(groovyContent string) string {
 	safe := strings.ReplaceAll(groovyContent, "]]>", "]]]]><![CDATA[>")
 	return fmt.Sprintf(`<?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <description>Seed job — generates all jeeb pipeline jobs from seed.groovy</description>
+  <description>Seed job - generates all jeeb pipeline jobs from seed.groovy</description>
   <keepDependencies>false</keepDependencies>
   <properties/>
   <scm class="hudson.scm.NullSCM"/>

@@ -27,38 +27,35 @@ go run ./cmd/k8s-manager validate
 
 ```powershell
 # Reset cluster first (Docker Desktop → Settings → Kubernetes → Reset Kubernetes Cluster)
-# Then delete leftover files from any previous run:
-rm vault-init.json, values-secrets.yaml -ErrorAction SilentlyContinue
 
 # Bootstrap everything (~15-20 min)
 go run ./cmd/k8s-manager setup
 ```
 
-The `setup` command runs 21 steps in order:
+The `setup` command runs 20 steps in order:
 
 | # | Step |
 |---|------|
-| 1 | Pre-flight checks (cluster reachable, helm on PATH) |
-| 2 | Generate `values-secrets.yaml` from `env/secrets.yaml` |
-| 3 | Install nginx ingress controller |
-| 4 | Install Rancher + cert-manager (skipped if already installed) |
-| 5 | Deploy `jeeb-infra` — Vault, Jenkins, Nexus, SonarQube, Kong |
+| 1 | Pre-flight checks (cluster reachable, helm on PATH, clear stale Kong key) |
+| 2 | Remove stale files from previous run (`vault-init.json`, `values-secrets.yaml`) |
+| 3 | Generate `values-secrets.yaml` from `env/secrets.yaml` |
+| 4 | Install nginx ingress controller |
+| 5 | Install Rancher + cert-manager (skipped if already installed) |
 | 6 | Deploy `jeeb-data` — MongoDB, Keycloak |
-| 7 | Deploy `jeeb-obs` — Prometheus, Loki, Grafana |
-| 8 | Initialize Nexus Docker registry |
-| 9 | Wait for Keycloak ready |
-| 10 | Fetch Kong RS256 key from Keycloak JWKS |
-| 11 | Re-deploy `jeeb-infra` with Kong key |
-| 12 | Wait for Kong ready |
-| 13 | Wait for Vault pod ready |
-| 14 | Initialize Vault → saves `vault-init.json` |
-| 15 | Store unseal keys in Kubernetes secret |
-| 16 | Unseal Vault |
-| 17 | Configure Vault (KV engine, policies, K8s auth roles) |
-| 18 | Patch CoreDNS for `.local` DNS |
-| 19 | Wait for CoreDNS rollout |
-| 20 | Verify DNS for all `.local` domains |
-| 21 | Seed Jenkins (create seed job, generate pipeline jobs) |
+| 7 | Wait for Keycloak ready |
+| 8 | Fetch Kong RS256 key from Keycloak JWKS |
+| 9 | Deploy `jeeb-infra` — Vault, Jenkins, Nexus, SonarQube, Kong |
+| 10 | Wait for Kong ready |
+| 11 | Wait for Vault pod ready |
+| 12 | Initialize Vault → saves `vault-init.json` |
+| 13 | Store unseal keys in Kubernetes secret |
+| 14 | Unseal Vault |
+| 15 | Configure Vault (KV engine, policies, K8s auth roles) |
+| 16 | Initialize Nexus Docker registry |
+| 17 | Patch CoreDNS for `.local` DNS |
+| 18 | Wait for CoreDNS rollout |
+| 19 | Verify DNS for all `.local` domains |
+| 20 | Seed Jenkins (create seed job, generate pipeline jobs) |
 
 ## After setup
 
@@ -139,7 +136,7 @@ k8s-manager/
     maintain/                 Diagnosis report with fix commands
     printer/                  Pod status table formatter
     rancher/                  cert-manager + Rancher deployer
-    setup/                    21-step bootstrap orchestrator
+    setup/                    20-step bootstrap orchestrator
     util/                     Shared: exec, HTTP polling, JWK→PEM
     validate/                 Credential completeness checker
   env/

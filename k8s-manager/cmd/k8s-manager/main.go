@@ -67,6 +67,7 @@ func main() {
 		newKongKeyCmd(&secretsFile, &configFile, &chartsDir, &outputDir, &dryRun),
 		newCheckCmd(&secretsFile, &configFile, &outputDir),
 		newMaintainCmd(&secretsFile, &configFile, &outputDir),
+		newPatchJenkinsCredsCmd(&secretsFile, &dryRun),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -335,6 +336,31 @@ func newLogsCmd(kubeconfig *string) *cobra.Command {
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "jeeb-dev", "target namespace")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "stream logs continuously")
 	cmd.Flags().Int64Var(&tail, "tail", 100, "number of recent lines to show")
+	return cmd
+}
+
+func newPatchJenkinsCredsCmd(secretsFile *string, dryRun *bool) *cobra.Command {
+	var namespace string
+
+	cmd := &cobra.Command{
+		Use:   "patch-jenkins-creds",
+		Short: "Patch jenkins-secret from secrets.yaml and restart Jenkins",
+		Long: `Updates the jenkins-secret Kubernetes secret with the current values from
+secrets.yaml, then rolls out a Jenkins restart so the new credentials take effect.
+
+All six credential keys are patched: admin-password, github-user, github-pat,
+nexus-user, nexus-password, sonar-token.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			secretsPath := resolvedSecretsFile(*secretsFile)
+			creds, err := loadCreds(secretsPath)
+			if err != nil {
+				return err
+			}
+			return jenkins.NewCredentialsPatcher(creds, namespace, *dryRun).Run(cmd.Context())
+		},
+	}
+
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "jeeb-infra", "namespace where Jenkins is deployed")
 	return cmd
 }
 

@@ -30,12 +30,12 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           volumeMounts:
-            - name: config
+            - name: promtail-config
               mountPath: /etc/promtail
-            - name: varlog
+            - name: promtail-varlog
               mountPath: /var/log
               readOnly: true
-            - name: varlibdockercontainers
+            - name: promtail-varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true
           resources:
@@ -46,12 +46,12 @@ spec:
               memory: 128Mi
               cpu: 100m
       volumes:
-        - name: config
+        - name: promtail-config
           configMap:
             name: promtail-config
-        - name: varlog
+        - name: promtail-varlog
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: promtail-varlibdockercontainers
           hostPath:
             path: /var/lib/docker/containers

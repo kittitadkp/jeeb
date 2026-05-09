@@ -73,11 +73,11 @@ spec:
                 secretKeyRef:
                   name: jenkins-secret
                   key: nexus-user
-            - name: NEXUS_PAT
+            - name: NEXUS_PASS
               valueFrom:
                 secretKeyRef:
                   name: jenkins-secret
-                  key: nexus-pat
+                  key: nexus-password
             - name: SONAR_TOKEN
               valueFrom:
                 secretKeyRef:

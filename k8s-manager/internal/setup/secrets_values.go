@@ -40,7 +40,7 @@ func GenerateSecretsValues(creds *credentials.Credentials, nexusRegistry string)
 				"githubUser":    creds.JenkinsGithubUser,
 				"githubPat":     creds.JenkinsGithubPAT,
 				"nexusUser":     creds.JenkinsNexusUser,
-				"nexusPat":      creds.JenkinsNexusPAT,
+				"nexusPassword": creds.JenkinsNexusPassword,
 				"sonarToken":    creds.JenkinsSonarToken,
 			},
 		},

@@ -25,9 +25,9 @@ spec:
           ports:
             - containerPort: 3100
           volumeMounts:
-            - name: config
+            - name: loki-config
               mountPath: /etc/loki
-            - name: data
+            - name: loki-data
               mountPath: /loki
           resources:
             requests:
@@ -43,9 +43,9 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
       volumes:
-        - name: config
+        - name: loki-config
           configMap:
             name: loki-config
-        - name: data
+        - name: loki-data
           persistentVolumeClaim:
             claimName: loki-pvc

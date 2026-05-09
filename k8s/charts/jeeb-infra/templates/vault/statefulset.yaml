@@ -68,9 +68,9 @@ spec:
                     vault operator unseal "$VAULT_UNSEAL_KEY_2" || true
                     vault operator unseal "$VAULT_UNSEAL_KEY_3" || true
           volumeMounts:
-            - name: config
+            - name: vault-config
               mountPath: /vault/config
-            - name: data
+            - name: vault-data
               mountPath: /vault/data
           resources:
             requests:
@@ -91,9 +91,9 @@ spec:
               add:
                 - IPC_LOCK
       volumes:
-        - name: config
+        - name: vault-config
           configMap:
             name: vault-config
-        - name: data
+        - name: vault-data
           persistentVolumeClaim:
             claimName: vault-pvc

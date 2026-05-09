@@ -30,9 +30,9 @@ spec:
             - name: otlp-http
               containerPort: 4318
           volumeMounts:
-            - name: config
+            - name: tempo-config
               mountPath: /etc/tempo
-            - name: data
+            - name: tempo-data
               mountPath: /var/tempo
           resources:
             requests:
@@ -48,9 +48,9 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
       volumes:
-        - name: config
+        - name: tempo-config
           configMap:
             name: tempo-config
-        - name: data
+        - name: tempo-data
           persistentVolumeClaim:
             claimName: tempo-pvc

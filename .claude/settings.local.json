@@ -74,7 +74,8 @@
       "Bash(dir /s \"D:\\\\personal\\\\jeeb\\\\k8s-manager\")",
       "Bash(Get-ChildItem *)",
       "Bash(Select-Object FullName)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(python3 *)"
     ]
   },
   "mcpServers": {

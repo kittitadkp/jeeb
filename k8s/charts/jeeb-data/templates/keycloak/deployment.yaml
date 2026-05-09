@@ -49,9 +49,9 @@ spec:
               memory: 1Gi
               cpu: 500m
           volumeMounts:
-            - name: data
+            - name: keycloak-data
               mountPath: /opt/keycloak/data
-            - name: realm-import
+            - name: keycloak-realm-import
               mountPath: /opt/keycloak/data/import
               readOnly: true
           readinessProbe:
@@ -68,9 +68,9 @@ spec:
             periodSeconds: 20
             failureThreshold: 3
       volumes:
-        - name: data
+        - name: keycloak-data
           persistentVolumeClaim:
             claimName: keycloak-pvc
-        - name: realm-import
+        - name: keycloak-realm-import
           configMap:
             name: keycloak-realm

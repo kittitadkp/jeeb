@@ -42,7 +42,7 @@ data:
                   scope: GLOBAL
                   id: "nexus-docker-secret"
                   username: "${NEXUS_USER}"
-                  password: "${NEXUS_PAT}"
+                  password: "${NEXUS_PASS}"
                   description: "Nexus Docker Registry"
               - string:
                   scope: GLOBAL

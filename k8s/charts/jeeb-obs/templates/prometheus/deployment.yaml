@@ -29,9 +29,9 @@ spec:
           ports:
             - containerPort: 9090
           volumeMounts:
-            - name: config
+            - name: prometheus-config
               mountPath: /etc/prometheus
-            - name: data
+            - name: prometheus-data
               mountPath: /prometheus
           resources:
             requests:
@@ -47,9 +47,9 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
-        - name: config
+        - name: prometheus-config
           configMap:
             name: prometheus-config
-        - name: data
+        - name: prometheus-data
           persistentVolumeClaim:
             claimName: prometheus-pvc
