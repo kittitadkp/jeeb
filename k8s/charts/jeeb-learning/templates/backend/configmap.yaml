@@ -11,7 +11,7 @@ data:
   MONGO_DATABASE: {{ .Values.backend.database }}
   KEYCLOAK_URL: "http://{{ .Values.keycloak.host }}:8080"
   KEYCLOAK_REALM: jeeb
-  KEYCLOAK_CLIENT_ID: jeeb-app
+  KEYCLOAK_CLIENT_ID: learning-app
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.jeeb-obs.svc.cluster.local:4318"
   OTEL_SERVICE_NAME: "jeeb-learning"
   UPSTREAM_AUTH: "true"
