@@ -23,7 +23,7 @@ These pages currently manage state in the browser and do not call backend APIs.
 
 - Keycloak login mode: `login-required`
 - PKCE method: `S256`
-- API base URL: `import.meta.env.VITE_API_URL`
+- API base URL: runtime `app-config.js` first, then `import.meta.env.VITE_API_URL`
 - Token injection happens centrally in `src/lib/api.ts`
 
 ## Learning frontend
@@ -34,4 +34,4 @@ These pages currently manage state in the browser and do not call backend APIs.
 
 ## Build and deployment caveat
 
-The frontends are static bundles behind Nginx. Even though Vault renders env files into the frontend pods, the current images do not read them at runtime. To change frontend env values, rebuild and redeploy the image.
+The frontends are static bundles behind Nginx, but the container now renders `app-config.js` from the Vault-rendered env file at startup. Rebuild only when code changes; rollout the frontend when runtime env values change.

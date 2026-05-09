@@ -1,3 +1,4 @@
+{{- $envFile := .Values.frontend.vault.envFile -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +29,11 @@ spec:
 
         - name: learning-frontend
           image: {{ .Values.global.imageRegistry }}/jeeb/learning-frontend:{{ .Values.frontend.imageTag }}
+          env:
+            - name: VAULT_ENV_FILE
+              value: "/app/env/{{ $envFile }}"
+            - name: VAULT_ENV_WAIT_SECONDS
+              value: "60"
           ports:
             - containerPort: 80
           volumeMounts:

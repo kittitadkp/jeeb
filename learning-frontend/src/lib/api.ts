@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8081";
+import { appConfig } from "./app-config";
+
+const BASE_URL = appConfig.apiUrl;
 
 let accessToken = "";
 

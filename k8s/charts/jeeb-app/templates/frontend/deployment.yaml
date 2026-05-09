@@ -29,6 +29,11 @@ spec:
 
         - name: frontend
           image: {{ .Values.global.imageRegistry }}/jeeb/frontend:{{ .Values.frontend.imageTag }}
+          env:
+            - name: VAULT_ENV_FILE
+              value: "/app/env/{{ $envFile }}"
+            - name: VAULT_ENV_WAIT_SECONDS
+              value: "60"
           ports:
             - containerPort: 80
           volumeMounts:

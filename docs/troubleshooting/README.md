@@ -22,4 +22,4 @@ go run ./cmd/k8s-manager maintain
 
 - There is no maintained root Docker Compose workflow.
 - Main backend metrics live at `/metrics`; learning-backend has no matching endpoint.
-- Frontend runtime config is mostly build-time config today.
+- Frontend runtime config is rendered from Vault env files at container start; build-time env is fallback only.

@@ -14,7 +14,9 @@
 
 ## Changes to frontend env values do not take effect in Kubernetes
 
-That is current behavior. The deployed Nginx images serve a static build and do not read the Vault-rendered env files mounted into the pods.
+- Check that `/app/env/.env.develop` exists in the frontend pod.
+- Check that `/usr/share/nginx/html/app-config.js` was regenerated from that file.
+- If values are stale, restart the frontend pod or rollout the deployment so the startup script re-renders runtime config.
 
 ## Goals, Events, or Settings do not persist
 

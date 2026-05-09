@@ -50,4 +50,4 @@ Infrastructure, deployment, and operations live in `k8s/`, `k8s-manager/`, and `
 
 - Main frontend pages `Goals`, `Events`, and `Settings` are local UI only.
 - Event calendar sync is exposed in the main backend, but no calendar provider is wired.
-- Frontend deployments mount Vault-rendered env files, but the shipped Nginx images do not read them. Frontend config is effectively decided at build time.
+- Frontend deployments render a runtime `app-config.js` from Vault-rendered env files before Nginx starts. Build-time env remains a fallback.
