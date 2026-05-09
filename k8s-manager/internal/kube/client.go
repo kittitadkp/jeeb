@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +15,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
 
+	"k8s-manager/internal/logger"
 	"k8s-manager/internal/printer"
 )
 
@@ -40,6 +42,23 @@ func NewClient(kubeconfig string) (*Client, error) {
 	}
 
 	return &Client{cs: cs}, nil
+}
+
+func (c *Client) CreateNamespaces(ctx context.Context, namespaces []string) error {
+	for _, ns := range namespaces {
+		_, err := c.cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: ns},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				logger.Debug("namespace %q already exists", ns)
+				continue
+			}
+			return fmt.Errorf("create namespace %s: %w", ns, err)
+		}
+		logger.Info("namespace %q created", ns)
+	}
+	return nil
 }
 
 func (c *Client) PrintStatus(ctx context.Context, namespace string) error {
@@ -74,7 +93,7 @@ func (c *Client) RestartDeployment(ctx context.Context, namespace, name string) 
 		return fmt.Errorf("update deployment: %w", err)
 	}
 
-	fmt.Printf("restarted deployment %s/%s\n", namespace, name)
+	logger.Info("restarted deployment %s/%s", namespace, name)
 	return nil
 }
 

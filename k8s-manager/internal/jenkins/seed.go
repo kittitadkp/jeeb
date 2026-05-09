@@ -12,6 +12,8 @@ import (
 
 	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
+	"k8s-manager/internal/logger"
+	"k8s-manager/internal/util"
 )
 
 // Seeder creates and runs the Jenkins seed job that generates all pipeline jobs.
@@ -24,15 +26,15 @@ type Seeder struct {
 	client     *http.Client
 
 	// values substituted into seed.groovy placeholders and set as global env vars
-	githubCredsId       string
-	jenkinsRepo         string
-	k8sRepo             string
-	backendRepo         string
-	frontendRepo        string
+	githubCredsId        string
+	jenkinsRepo          string
+	k8sRepo              string
+	backendRepo          string
+	frontendRepo         string
 	learningBackendRepo  string
 	learningFrontendRepo string
-	nexusRegistryHost   string
-	sonarQubeURL        string
+	nexusRegistryHost    string
+	sonarQubeURL         string
 }
 
 func NewSeeder(cfg *config.ClusterConfig, creds *credentials.Credentials, groovyPath, jenkinsURL string, dryRun bool) *Seeder {
@@ -46,29 +48,29 @@ func NewSeeder(cfg *config.ClusterConfig, creds *credentials.Credentials, groovy
 		user:       "admin",
 		password:   creds.JenkinsAdminPassword,
 		dryRun:     dryRun,
-		client:     &http.Client{Timeout: 30 * time.Second},
+		client:     util.NewBasicAuthClient(),
 
-		githubCredsId:       creds.JenkinsGithubCredsId,
-		jenkinsRepo:         creds.JenkinsJenkinsRepo,
-		k8sRepo:             creds.JenkinsK8sRepo,
-		backendRepo:         creds.JenkinsBackendRepo,
-		frontendRepo:        creds.JenkinsFrontendRepo,
+		githubCredsId:        creds.JenkinsGithubCredsId,
+		jenkinsRepo:          creds.JenkinsJenkinsRepo,
+		k8sRepo:              creds.JenkinsK8sRepo,
+		backendRepo:          creds.JenkinsBackendRepo,
+		frontendRepo:         creds.JenkinsFrontendRepo,
 		learningBackendRepo:  creds.JenkinsLearningBackendRepo,
 		learningFrontendRepo: creds.JenkinsLearningFrontendRepo,
-		nexusRegistryHost:   cfg.NexusRegistryHost,
-		sonarQubeURL:        cfg.SonarQubeURL,
+		nexusRegistryHost:    cfg.NexusRegistryHost,
+		sonarQubeURL:         cfg.SonarQubeURL,
 	}
 }
 
 func (s *Seeder) Run(ctx context.Context) error {
-	fmt.Printf("      waiting for Jenkins at %s ...\n", s.jenkinsURL)
+	logger.Step("      waiting for Jenkins at %s ...", s.jenkinsURL)
 	if err := s.waitForJenkins(ctx); err != nil {
 		return fmt.Errorf("wait for Jenkins: %w", err)
 	}
-	fmt.Println("      Jenkins is ready")
+	logger.Step("      Jenkins is ready")
 
 	if s.dryRun {
-		fmt.Printf("      [dry-run] would read %s, create seed job, trigger build\n", s.groovyPath)
+		logger.Step("      [dry-run] would read %s, create seed job, trigger build", s.groovyPath)
 		return nil
 	}
 
@@ -82,49 +84,36 @@ func (s *Seeder) Run(ctx context.Context) error {
 		return fmt.Errorf("get crumb: %w", err)
 	}
 
-	fmt.Println("      configuring Jenkins global environment variables ...")
+	logger.Step("      configuring Jenkins global environment variables ...")
 	if err := s.configureGlobalEnvVars(ctx, crumbField, crumb); err != nil {
 		return fmt.Errorf("configure global env vars: %w", err)
 	}
 
-	fmt.Println("      creating/updating seed job ...")
+	logger.Step("      creating/updating seed job ...")
 	script := s.substituteGroovy(string(groovy))
 	if err := s.createOrUpdateJob(ctx, crumbField, crumb, script); err != nil {
 		return fmt.Errorf("create seed job: %w", err)
 	}
 
-	fmt.Println("      triggering seed build ...")
+	logger.Step("      triggering seed build ...")
 	queueURL, err := s.triggerBuild(ctx, crumbField, crumb)
 	if err != nil {
 		return fmt.Errorf("trigger seed build: %w", err)
 	}
 
-	fmt.Println("      waiting for seed build to complete ...")
+	logger.Step("      waiting for seed build to complete ...")
 	return s.waitForBuild(ctx, queueURL)
 }
 
 func (s *Seeder) waitForJenkins(ctx context.Context) error {
-	deadline := time.Now().Add(3 * time.Minute)
-	for time.Now().Before(deadline) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.jenkinsURL+"/api/json", nil)
-		if err != nil {
-			return err
-		}
-		req.SetBasicAuth(s.user, s.password)
-		resp, err := s.client.Do(req)
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-	}
-	return fmt.Errorf("Jenkins not ready after 3 minutes at %s", s.jenkinsURL)
+	return util.PollHTTP(ctx,
+		util.PollConfig{Timeout: 3 * time.Minute},
+		s.client,
+		http.MethodGet,
+		s.jenkinsURL+"/api/json",
+		http.StatusOK,
+		func(req *http.Request) { req.SetBasicAuth(s.user, s.password) },
+	)
 }
 
 func (s *Seeder) getCrumb(ctx context.Context) (field, value string, err error) {
@@ -221,15 +210,18 @@ func (s *Seeder) waitForBuild(ctx context.Context, queueItemURL string) error {
 	// Resolve queue item → actual build number so we track the right build.
 	if queueItemURL != "" {
 		url := strings.TrimRight(queueItemURL, "/") + "/api/json"
-		deadline := time.Now().Add(2 * time.Minute)
-		for time.Now().Before(deadline) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-			if err != nil {
-				return err
-			}
-			req.SetBasicAuth(s.user, s.password)
-			resp, err := s.client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
+		var buildNum int
+		_ = util.PollUntil(ctx, util.PollConfig{Timeout: 2 * time.Minute, Interval: 3 * time.Second},
+			func(ctx context.Context) error {
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+				if err != nil {
+					return err
+				}
+				req.SetBasicAuth(s.user, s.password)
+				resp, err := s.client.Do(req)
+				if err != nil {
+					return err
+				}
 				var item struct {
 					Executable struct {
 						Number int `json:"number"`
@@ -237,21 +229,19 @@ func (s *Seeder) waitForBuild(ctx context.Context, queueItemURL string) error {
 				}
 				_ = json.NewDecoder(resp.Body).Decode(&item)
 				resp.Body.Close()
-				if item.Executable.Number > 0 {
-					buildURL = fmt.Sprintf("%s/job/seed/%d/api/json", s.jenkinsURL, item.Executable.Number)
-					break
+				if item.Executable.Number == 0 {
+					return fmt.Errorf("build not yet started")
 				}
-			} else if resp != nil {
-				resp.Body.Close()
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(3 * time.Second):
-			}
+				buildNum = item.Executable.Number
+				return nil
+			},
+		)
+		if buildNum > 0 {
+			buildURL = fmt.Sprintf("%s/job/seed/%d/api/json", s.jenkinsURL, buildNum)
 		}
 	}
 
+	// Poll for build completion. Non-SUCCESS result breaks immediately.
 	deadline := time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildURL, nil)
@@ -269,7 +259,7 @@ func (s *Seeder) waitForBuild(ctx context.Context, queueItemURL string) error {
 			resp.Body.Close()
 			if !build.Building && build.Result != "" {
 				if build.Result == "SUCCESS" {
-					fmt.Println("      seed complete — pipeline jobs created")
+					logger.Step("      seed complete — pipeline jobs created")
 					return nil
 				}
 				return fmt.Errorf("seed build result: %s (check %s/job/seed/lastBuild/console)", build.Result, s.jenkinsURL)
@@ -322,7 +312,7 @@ println 'env vars configured'
 `, s.nexusRegistryHost, s.sonarQubeURL, s.k8sRepo, s.githubCredsId)
 
 	if s.dryRun {
-		fmt.Printf("      [dry-run] would configure global env vars: NEXUS_REGISTRY_HOST=%s SONAR_URL=%s K8S_REPO_URL=%s GITHUB_CREDS_ID=%s\n",
+		logger.Step("      [dry-run] would configure global env vars: NEXUS_REGISTRY_HOST=%s SONAR_URL=%s K8S_REPO_URL=%s GITHUB_CREDS_ID=%s",
 			s.nexusRegistryHost, s.sonarQubeURL, s.k8sRepo, s.githubCredsId)
 		return nil
 	}
@@ -353,7 +343,6 @@ println 'env vars configured'
 
 // netURLQueryEscape percent-encodes a string for use as a form value.
 func netURLQueryEscape(s string) string {
-	// Encode every byte that isn't unreserved per RFC 3986.
 	const unreserved = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {

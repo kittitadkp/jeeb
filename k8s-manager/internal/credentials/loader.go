@@ -18,11 +18,11 @@ type Credentials struct {
 	JenkinsSonarToken    string
 
 	// Repo URLs — default to https://github.com/<githubUser>/<conventional-name>.git
-	JenkinsGithubCredsId       string
-	JenkinsJenkinsRepo         string
-	JenkinsK8sRepo             string
-	JenkinsBackendRepo         string
-	JenkinsFrontendRepo        string
+	JenkinsGithubCredsId        string
+	JenkinsJenkinsRepo          string
+	JenkinsK8sRepo              string
+	JenkinsBackendRepo          string
+	JenkinsFrontendRepo         string
 	JenkinsLearningBackendRepo  string
 	JenkinsLearningFrontendRepo string
 
@@ -44,17 +44,17 @@ type Credentials struct {
 // credentialsFile mirrors the structure of credentials.yaml.
 type credentialsFile struct {
 	Jenkins struct {
-		AdminPassword       string `yaml:"adminPassword"`
-		GithubUser          string `yaml:"githubUser"`
-		GithubPat           string `yaml:"githubPat"`
-		NexusUser           string `yaml:"nexusUser"`
-		NexusPat            string `yaml:"nexusPat"`
-		SonarToken          string `yaml:"sonarToken"`
-		GithubCredsId       string `yaml:"githubCredsId"`
-		JenkinsRepo         string `yaml:"jenkinsRepo"`
-		K8sRepo             string `yaml:"k8sRepo"`
-		BackendRepo         string `yaml:"backendRepo"`
-		FrontendRepo        string `yaml:"frontendRepo"`
+		AdminPassword        string `yaml:"adminPassword"`
+		GithubUser           string `yaml:"githubUser"`
+		GithubPat            string `yaml:"githubPat"`
+		NexusUser            string `yaml:"nexusUser"`
+		NexusPat             string `yaml:"nexusPat"`
+		SonarToken           string `yaml:"sonarToken"`
+		GithubCredsId        string `yaml:"githubCredsId"`
+		JenkinsRepo          string `yaml:"jenkinsRepo"`
+		K8sRepo              string `yaml:"k8sRepo"`
+		BackendRepo          string `yaml:"backendRepo"`
+		FrontendRepo         string `yaml:"frontendRepo"`
 		LearningBackendRepo  string `yaml:"learningBackendRepo"`
 		LearningFrontendRepo string `yaml:"learningFrontendRepo"`
 	} `yaml:"jenkins"`
@@ -94,12 +94,12 @@ func Load(path string) (*Credentials, error) {
 	ghBase := "https://github.com/" + f.Jenkins.GithubUser
 
 	c := &Credentials{
-		JenkinsAdminPassword:   f.Jenkins.AdminPassword,
-		JenkinsGithubUser:      f.Jenkins.GithubUser,
-		JenkinsGithubPAT:       f.Jenkins.GithubPat,
-		JenkinsNexusUser:       f.Jenkins.NexusUser,
-		JenkinsNexusPAT:        f.Jenkins.NexusPat,
-		JenkinsSonarToken:      f.Jenkins.SonarToken,
+		JenkinsAdminPassword: f.Jenkins.AdminPassword,
+		JenkinsGithubUser:    f.Jenkins.GithubUser,
+		JenkinsGithubPAT:     f.Jenkins.GithubPat,
+		JenkinsNexusUser:     f.Jenkins.NexusUser,
+		JenkinsNexusPAT:      f.Jenkins.NexusPat,
+		JenkinsSonarToken:    f.Jenkins.SonarToken,
 
 		JenkinsGithubCredsId:        coa(f.Jenkins.GithubCredsId, "github-creds"),
 		JenkinsJenkinsRepo:          coa(f.Jenkins.JenkinsRepo, ghBase+"/jeeb-jenkins.git"),
@@ -131,7 +131,6 @@ func (c *Credentials) RequiredFields() map[string]string {
 		"jenkins.adminPassword":  c.JenkinsAdminPassword,
 		"jenkins.githubUser":     c.JenkinsGithubUser,
 		"jenkins.githubPat":      c.JenkinsGithubPAT,
-		"jenkins.nexusPat":       c.JenkinsNexusPAT,
 		"keycloak.adminPassword": c.KeycloakAdminPassword,
 		"mongodb.password":       c.MongoDBPassword,
 		"nexus.adminPassword":    c.NexusAdminPassword,
@@ -143,6 +142,7 @@ func (c *Credentials) RequiredFields() map[string]string {
 func (c *Credentials) OptionalFields() map[string]string {
 	return map[string]string{
 		"jenkins.sonarToken":     c.JenkinsSonarToken,
+		"jenkins.nexusPat":       c.JenkinsNexusPAT,
 		"kong.keycloakPublicKey": c.KongKeycloakPublicKey,
 	}
 }

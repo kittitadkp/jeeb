@@ -1,0 +1,56 @@
+# env/config.yaml — cluster topology overrides for the jeeb k8s setup.
+# All fields are OPTIONAL. Unset fields fall back to the defaults in
+# internal/config/config.go (tuned for Docker Desktop single-node).
+# Copy this file to env/config.yaml and override only what differs from defaults.
+
+cluster:
+  namespaces:
+    dev: jeeb-dev
+    infra: jeeb-infra
+    obs: jeeb-obs
+  releases:
+    data: jeeb-data
+    dev: jeeb-dev
+    infra: jeeb-infra
+    learning: jeeb-learning
+    obs: jeeb-obs
+  vault:
+    pod: vault-0
+    addr: http://127.0.0.1:8200
+  keycloak:
+    realm: jeeb
+    clientId: jeeb-app
+    host: keycloak.jeeb-dev.svc.cluster.local:8080
+    nodePort: 30081
+  kong:
+    issuer: http://auth.jeeb-dev.local/realms/jeeb
+    nodePort: 30088
+  mongo:
+    host: mongodb.jeeb-dev.svc.cluster.local:27017
+    nodePort: 30017
+  nodePorts:
+    frontend: 30000
+    backend: 30080
+    jenkins: 30082
+    jenkinsAgent: 30500
+    nexusUI: 30083
+    learningBackend: 30086
+    learningFront: 30087
+    sonarQube: 30090
+    vault: 30091
+    grafana: 30092
+    prometheus: 30093
+  nexus:
+    registry: localhost:30050
+  ingress:
+    label: app.kubernetes.io/name=ingress-nginx
+  rancher:
+    nodePort: 30443
+    hostname: rancher.jeeb-infra.local
+    namespace: cattle-system
+    certManagerNamespace: cert-manager
+  vaultPaths:
+    backend: secret/data/jeeb/backend/develop
+    frontend: secret/data/jeeb/frontend/develop
+    learningBackend: secret/data/jeeb/learning/backend/develop
+    learningFrontend: secret/data/jeeb/learning/frontend/develop

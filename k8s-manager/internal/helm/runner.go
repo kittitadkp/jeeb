@@ -2,19 +2,21 @@ package helm
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"k8s-manager/internal/logger"
+	"k8s-manager/internal/util"
 )
 
 func Run(ctx context.Context, dryRun bool, args ...string) error {
+	normalized := make([]string, len(args))
+	for i, a := range args {
+		normalized[i] = filepath.ToSlash(a)
+	}
 	if dryRun {
-		fmt.Printf("      helm %s\n", strings.Join(args, " "))
+		logger.Step("      helm %s", strings.Join(normalized, " "))
 		return nil
 	}
-	cmd := exec.CommandContext(ctx, "helm", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return util.RunCmd(ctx, "helm", normalized...)
 }

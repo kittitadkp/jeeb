@@ -3,11 +3,10 @@ package rancher
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
 
 	"k8s-manager/internal/config"
+	"k8s-manager/internal/logger"
+	"k8s-manager/internal/util"
 )
 
 const (
@@ -37,21 +36,21 @@ func (d *Deployer) Run(ctx context.Context) error {
 		{"Patch Rancher service to NodePort " + fmt.Sprint(d.cfg.RancherNodePort), d.patchNodePort},
 	}
 
-	fmt.Println("=== Rancher Setup ===")
+	logger.StepMsg("=== Rancher Setup ===")
 	if d.dryRun {
-		fmt.Println("DRY RUN — commands will be printed, not executed")
+		logger.StepMsg("DRY RUN — commands will be printed, not executed")
 	}
-	fmt.Println()
+	logger.StepMsg("")
 
 	for i, s := range steps {
-		fmt.Printf("[%d/%d] %s\n", i+1, len(steps), s.name)
+		logger.Step("[%d/%d] %s", i+1, len(steps), s.name)
 		if err := s.fn(ctx); err != nil {
 			return fmt.Errorf("step %d (%s): %w", i+1, s.name, err)
 		}
-		fmt.Printf("      done\n\n")
+		logger.StepMsg("      done\n")
 	}
 
-	fmt.Printf(`=== Rancher deployed ===
+	logger.Step(`=== Rancher deployed ===
 
   Via NodePort  https://localhost:%d  (accept self-signed cert warning)
   Via ingress   https://%s
@@ -71,7 +70,7 @@ func (d *Deployer) addRepos(ctx context.Context) error {
 		{"repo", "update"},
 	}
 	for _, args := range cmds {
-		if err := d.helm(ctx, args...); err != nil {
+		if err := util.DryRunOrExec(ctx, d.dryRun, "helm", args...); err != nil {
 			return err
 		}
 	}
@@ -79,7 +78,7 @@ func (d *Deployer) addRepos(ctx context.Context) error {
 }
 
 func (d *Deployer) installCertManager(ctx context.Context) error {
-	return d.helm(ctx,
+	return util.DryRunOrExec(ctx, d.dryRun, "helm",
 		"upgrade", "--install", "cert-manager", "jetstack/cert-manager",
 		"--namespace", d.cfg.CertManagerNamespace,
 		"--create-namespace",
@@ -91,8 +90,8 @@ func (d *Deployer) installCertManager(ctx context.Context) error {
 func (d *Deployer) waitCertManager(ctx context.Context) error {
 	deployments := []string{"cert-manager", "cert-manager-webhook", "cert-manager-cainjector"}
 	for _, dep := range deployments {
-		fmt.Printf("      waiting for %s...\n", dep)
-		if err := d.kubectl(ctx,
+		logger.Step("      waiting for %s...", dep)
+		if err := util.DryRunOrExec(ctx, d.dryRun, "kubectl",
 			"rollout", "status", "deployment/"+dep,
 			"-n", d.cfg.CertManagerNamespace,
 			"--timeout=120s",
@@ -104,7 +103,7 @@ func (d *Deployer) waitCertManager(ctx context.Context) error {
 }
 
 func (d *Deployer) installRancher(ctx context.Context) error {
-	return d.helm(ctx,
+	return util.DryRunOrExec(ctx, d.dryRun, "helm",
 		"upgrade", "--install", "rancher", "rancher-stable/rancher",
 		"--namespace", d.cfg.RancherNamespace,
 		"--create-namespace",
@@ -118,7 +117,7 @@ func (d *Deployer) installRancher(ctx context.Context) error {
 }
 
 func (d *Deployer) waitRancher(ctx context.Context) error {
-	return d.kubectl(ctx,
+	return util.DryRunOrExec(ctx, d.dryRun, "kubectl",
 		"rollout", "status", "deployment/rancher",
 		"-n", d.cfg.RancherNamespace,
 		"--timeout=300s",
@@ -130,32 +129,10 @@ func (d *Deployer) patchNodePort(ctx context.Context) error {
     {"op":"replace","path":"/spec/type","value":"NodePort"},
     {"op":"add","path":"/spec/ports/0/nodePort","value":%d}
   ]`, d.cfg.RancherNodePort)
-	return d.kubectl(ctx,
+	return util.DryRunOrExec(ctx, d.dryRun, "kubectl",
 		"patch", "svc", "rancher",
 		"-n", d.cfg.RancherNamespace,
 		"--type=json",
 		"-p="+patch,
 	)
-}
-
-func (d *Deployer) helm(ctx context.Context, args ...string) error {
-	if d.dryRun {
-		fmt.Printf("      helm %s\n", strings.Join(args, " "))
-		return nil
-	}
-	cmd := exec.CommandContext(ctx, "helm", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func (d *Deployer) kubectl(ctx context.Context, args ...string) error {
-	if d.dryRun {
-		fmt.Printf("      kubectl %s\n", strings.Join(args, " "))
-		return nil
-	}
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

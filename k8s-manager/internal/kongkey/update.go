@@ -2,88 +2,99 @@ package kongkey
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"math/big"
-	"net/http"
 	"os"
 	"strings"
 
 	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
+	"k8s-manager/internal/logger"
 	"k8s-manager/internal/setup"
+	"k8s-manager/internal/util"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Updater handles fetching, storing, and deploying the Keycloak public key.
 type Updater struct {
-	cfg       *config.ClusterConfig
-	credsPath string
-	chartsDir string
-	outputDir string
-	dryRun    bool
+	cfg         *config.ClusterConfig
+	secretsPath string
+	chartsDir   string
+	outputDir   string
+	dryRun      bool
 }
 
-func NewUpdater(cfg *config.ClusterConfig, credsPath, chartsDir, outputDir string, dryRun bool) *Updater {
+func NewUpdater(cfg *config.ClusterConfig, secretsPath, chartsDir, outputDir string, dryRun bool) *Updater {
 	return &Updater{
-		cfg:       cfg,
-		credsPath: credsPath,
-		chartsDir: chartsDir,
-		outputDir: outputDir,
-		dryRun:    dryRun,
+		cfg:         cfg,
+		secretsPath: secretsPath,
+		chartsDir:   chartsDir,
+		outputDir:   outputDir,
+		dryRun:      dryRun,
 	}
 }
 
+// FetchPublicKey fetches the RS256 public key from Keycloak's JWKS endpoint.
+// Exported so the setup runner can call it inline without duplicating logic.
+func FetchPublicKey(ctx context.Context, keycloakNodePort int, realm string) (string, error) {
+	jwksURL := fmt.Sprintf("http://localhost:%d/realms/%s/protocol/openid-connect/certs",
+		keycloakNodePort, realm)
+	return util.FetchRS256PEM(ctx, jwksURL)
+}
+
 // Run fetches the Keycloak RS256 public key (from --key or JWKS endpoint),
-// saves it to credentials.yaml, regenerates values-secrets.yaml, and
+// saves it to secrets.yaml, regenerates values-secrets.yaml, and
 // redeploys jeeb-infra so Kong picks up the new key.
 func (u *Updater) Run(ctx context.Context, pemKey string) error {
 	if pemKey == "" {
+		jwksURL := fmt.Sprintf("http://localhost:%d/realms/%s/protocol/openid-connect/certs",
+			u.cfg.KeycloakNodePort, u.cfg.KeycloakRealm)
 		var err error
-		pemKey, err = u.fetchFromKeycloak()
+		pemKey, err = util.FetchRS256PEM(ctx, jwksURL)
 		if err != nil {
 			return fmt.Errorf("fetch key from Keycloak: %w\n\nIs Keycloak running at http://localhost:%d?",
 				err, u.cfg.KeycloakNodePort)
 		}
-		fmt.Printf("Fetched RS256 public key from Keycloak.\n")
+		logger.Step("Fetched RS256 public key from Keycloak.")
 	}
 
 	if !strings.Contains(pemKey, "BEGIN PUBLIC KEY") {
 		return fmt.Errorf("provided key does not look like a PEM public key (missing 'BEGIN PUBLIC KEY')")
 	}
 
-	fmt.Println("Updating credentials.yaml...")
-	creds, err := u.updateCredsFile(pemKey)
+	logger.Step("Updating secrets.yaml...")
+	creds, err := u.updateSecretsFile(pemKey)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Regenerating values-secrets.yaml...")
+	logger.Step("Regenerating values-secrets.yaml...")
 	secretsPath, err := setup.WriteSecretsValuesFile(u.outputDir, creds, u.cfg.NexusRegistry)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Redeploying jeeb-infra with updated Kong key...\n")
-	runner := setup.NewRunner(u.cfg, creds, u.chartsDir, u.outputDir, u.dryRun)
+	logger.Step("Redeploying jeeb-infra with updated Kong key...")
+	runner := setup.NewRunner(u.cfg, creds, u.chartsDir, u.outputDir, u.secretsPath, u.dryRun)
 	runner.SetSecretsFile(secretsPath)
 	return runner.DeployInfra(ctx)
 }
 
-func (u *Updater) updateCredsFile(pemKey string) (*credentials.Credentials, error) {
-	data, err := os.ReadFile(u.credsPath)
+// UpdateCredsFile writes the PEM key into secrets.yaml and reloads credentials.
+// Exported so the setup runner can update creds inline without re-deploying infra itself.
+func (u *Updater) UpdateCredsFile(pemKey string) (*credentials.Credentials, error) {
+	return u.updateSecretsFile(pemKey)
+}
+
+func (u *Updater) updateSecretsFile(pemKey string) (*credentials.Credentials, error) {
+	data, err := os.ReadFile(u.secretsPath)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", u.credsPath, err)
+		return nil, fmt.Errorf("read %s: %w", u.secretsPath, err)
 	}
 
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", u.credsPath, err)
+		return nil, fmt.Errorf("parse %s: %w", u.secretsPath, err)
 	}
 
 	kong, ok := raw["kong"].(map[string]interface{})
@@ -99,67 +110,12 @@ func (u *Updater) updateCredsFile(pemKey string) (*credentials.Credentials, erro
 	}
 
 	if u.dryRun {
-		fmt.Printf("      [dry-run] would write updated kong.keycloakPublicKey to %s\n", u.credsPath)
+		logger.Step("      [dry-run] would write updated kong.keycloakPublicKey to %s", u.secretsPath)
 	} else {
-		if err := os.WriteFile(u.credsPath, updated, 0600); err != nil {
-			return nil, fmt.Errorf("write %s: %w", u.credsPath, err)
+		if err := os.WriteFile(u.secretsPath, updated, 0600); err != nil {
+			return nil, fmt.Errorf("write %s: %w", u.secretsPath, err)
 		}
 	}
 
-	return credentials.Load(u.credsPath)
-}
-
-func (u *Updater) fetchFromKeycloak() (string, error) {
-	url := fmt.Sprintf("http://localhost:%d/realms/%s/protocol/openid-connect/certs",
-		u.cfg.KeycloakNodePort, u.cfg.KeycloakRealm)
-	resp, err := http.Get(url) //nolint:noctx
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var jwks struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-			Alg string `json:"alg"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		} `json:"keys"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
-		return "", fmt.Errorf("decode JWKS: %w", err)
-	}
-
-	for _, key := range jwks.Keys {
-		if key.Kty == "RSA" && (key.Alg == "RS256" || key.Alg == "") {
-			return jwkToPEM(key.N, key.E)
-		}
-	}
-	return "", fmt.Errorf("no RSA key found in JWKS response")
-}
-
-func jwkToPEM(nB64, eB64 string) (string, error) {
-	nBytes, err := base64.RawURLEncoding.DecodeString(nB64)
-	if err != nil {
-		return "", fmt.Errorf("decode modulus: %w", err)
-	}
-	eBytes, err := base64.RawURLEncoding.DecodeString(eB64)
-	if err != nil {
-		return "", fmt.Errorf("decode exponent: %w", err)
-	}
-
-	n := new(big.Int).SetBytes(nBytes)
-	e := int(new(big.Int).SetBytes(eBytes).Int64())
-
-	pub := &rsa.PublicKey{N: n, E: e}
-	der, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		return "", fmt.Errorf("marshal public key: %w", err)
-	}
-
-	var buf strings.Builder
-	if err := pem.Encode(&buf, &pem.Block{Type: "PUBLIC KEY", Bytes: der}); err != nil {
-		return "", fmt.Errorf("encode PEM: %w", err)
-	}
-	return buf.String(), nil
+	return credentials.Load(u.secretsPath)
 }

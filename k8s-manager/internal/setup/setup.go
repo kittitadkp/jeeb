@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,11 @@ import (
 	"k8s-manager/internal/credentials"
 	"k8s-manager/internal/helm"
 	"k8s-manager/internal/jenkins"
+	"k8s-manager/internal/logger"
+	"k8s-manager/internal/rancher"
+	"k8s-manager/internal/util"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Runner struct {
@@ -22,23 +28,25 @@ type Runner struct {
 	creds       *credentials.Credentials
 	chartsDir   string
 	outputDir   string
+	secretsPath string
 	dryRun      bool
 	secretsFile string
 }
 
-func NewRunner(cfg *config.ClusterConfig, creds *credentials.Credentials, chartsDir, outputDir string, dryRun bool) *Runner {
+func NewRunner(cfg *config.ClusterConfig, creds *credentials.Credentials, chartsDir, outputDir, secretsPath string, dryRun bool) *Runner {
 	return &Runner{
-		cfg:       cfg,
-		creds:     creds,
-		chartsDir: chartsDir,
-		outputDir: outputDir,
-		dryRun:    dryRun,
+		cfg:         cfg,
+		creds:       creds,
+		chartsDir:   chartsDir,
+		outputDir:   outputDir,
+		secretsPath: secretsPath,
+		dryRun:      dryRun,
 	}
 }
 
 func (r *Runner) writeSecretsFile() error {
 	if r.dryRun {
-		fmt.Printf("      [dry-run] would write values-secrets.yaml to %s\n", r.outputDir)
+		logger.Step("      [dry-run] would write values-secrets.yaml to %s", r.outputDir)
 		r.secretsFile = filepath.Join(r.outputDir, "values-secrets.yaml")
 		return nil
 	}
@@ -47,7 +55,7 @@ func (r *Runner) writeSecretsFile() error {
 		return err
 	}
 	r.secretsFile = path
-	fmt.Printf("      wrote %s\n", path)
+	logger.Debug("wrote %s", path)
 	return nil
 }
 
@@ -60,18 +68,18 @@ func (r *Runner) Deploy(ctx context.Context, targets []string) error {
 		want[t] = true
 	}
 
-	fmt.Println("=== Deploy Charts ===")
+	logger.StepMsg("=== Deploy Charts ===")
 	if r.dryRun {
-		fmt.Println("DRY RUN — commands will be printed, not executed")
+		logger.StepMsg("DRY RUN — commands will be printed, not executed")
 	}
-	fmt.Println()
+	logger.StepMsg("")
 
-	fmt.Println("[0] Generate values-secrets.yaml from credentials")
+	logger.StepMsg("[0] Generate values-secrets.yaml from credentials")
 	if err := r.writeSecretsFile(); err != nil {
 		return fmt.Errorf("generate secrets values file: %w", err)
 	}
-	fmt.Println("    done")
-	fmt.Println()
+	logger.StepMsg("    done")
+	logger.StepMsg("")
 
 	type step struct {
 		name   string
@@ -92,61 +100,71 @@ func (r *Runner) Deploy(ctx context.Context, targets []string) error {
 			continue
 		}
 		n++
-		fmt.Printf("[%d] %s\n", n, s.name)
+		logger.Step("[%d] %s", n, s.name)
 		if err := s.fn(ctx); err != nil {
 			return fmt.Errorf("deploy %s: %w", s.target, err)
 		}
-		fmt.Println("    done")
-		fmt.Println()
+		logger.StepMsg("    done")
+		logger.StepMsg("")
 	}
 
-	fmt.Println("=== Done ===")
+	logger.StepMsg("=== Done ===")
 	r.printAccessTable()
 	return nil
 }
 
 func (r *Runner) Run(ctx context.Context) error {
-	steps := []struct {
+	type step struct {
 		name string
 		fn   func(context.Context) error
-	}{
+	}
+
+	steps := []step{
+		{"Pre-flight checks", r.preflight},
+		{"Generate values-secrets.yaml from credentials", r.writeSecretsFileStep},
+		{"Install nginx ingress controller", r.ensureNginxIngress},
+		{"Install Rancher + cert-manager", r.ensureRancher},
 		{"Deploy jeeb-infra (Vault, Jenkins, Nexus, SonarQube, Kong)", r.deployInfra},
 		{"Deploy jeeb-data (MongoDB, Keycloak)", r.deployData},
-		{"Deploy jeeb-app (backend, frontend)", r.deployApp},
-		{"Deploy jeeb-learning", r.deployLearning},
 		{"Deploy jeeb-obs (Prometheus, Loki, Grafana)", r.deployObs},
+		{"Initialize Nexus Docker registry", r.initNexusDockerRepo},
+		{"Wait for Keycloak ready", r.waitForKeycloak},
+		{"Fetch Kong RS256 key from Keycloak", r.fetchAndApplyKongKey},
+		{"Re-deploy jeeb-infra with Kong key", r.deployInfra},
+		{"Wait for Kong ready", r.waitForKong},
 		{"Wait for Vault pod ready", r.waitForVault},
 		{"Initialize Vault", r.initVault},
 		{"Store unseal keys in Kubernetes secret", r.storeUnsealKeysApply},
 		{"Unseal Vault", r.unsealVault},
 		{"Configure Vault (KV engine, policies, K8s auth roles)", r.configureVault},
 		{"Patch CoreDNS for .local DNS", r.patchCoreDNS},
+		{"Wait for CoreDNS rollout", r.waitForCoreDNS},
+		{"Verify DNS for all .local domains", r.verifyAllDNS},
 		{"Seed Jenkins (create seed job, generate pipeline jobs)", r.seedJenkins},
 	}
 
-	fmt.Println("=== New Cluster Setup ===")
-	fmt.Printf("Charts directory : %s\n", r.chartsDir)
-	fmt.Printf("Output directory : %s\n", r.outputDir)
+	logger.StepMsg("=== New Cluster Setup ===")
+	logger.Step("Charts directory : %s", r.chartsDir)
+	logger.Step("Output directory : %s", r.outputDir)
 	if r.dryRun {
-		fmt.Println("DRY RUN — commands will be printed, not executed")
+		logger.StepMsg("DRY RUN — commands will be printed, not executed")
 	}
-	fmt.Println()
-
-	fmt.Printf("[0/%d] Generate values-secrets.yaml from credentials\n", len(steps))
-	if err := r.writeSecretsFile(); err != nil {
-		return fmt.Errorf("generate secrets values file: %w", err)
-	}
-	fmt.Printf("      done\n\n")
+	logger.StepMsg("")
 
 	for i, step := range steps {
-		fmt.Printf("[%d/%d] %s\n", i+1, len(steps), step.name)
+		logger.Step("[%d/%d] %s", i+1, len(steps), step.name)
 		if err := step.fn(ctx); err != nil {
 			return fmt.Errorf("step %d (%s): %w", i+1, step.name, err)
 		}
-		fmt.Printf("      done\n\n")
+		logger.StepMsg("      done\n")
 	}
 
-	fmt.Println("=== Setup complete ===")
+	logger.StepMsg("=== Setup complete ===")
+	logger.StepMsg("")
+	logger.StepMsg("Next steps (manual):")
+	logger.StepMsg("  1. Run Jenkins pipelines: backend, frontend, learning-backend, learning-frontend")
+	logger.StepMsg("  2. Pipelines build + push images to Nexus (localhost:30050)")
+	logger.StepMsg("  3. Deploy app: k8s-manager deploy app learning")
 	r.printAccessTable()
 	return nil
 }
@@ -160,6 +178,87 @@ func (r *Runner) DeployInfra(ctx context.Context) error {
 // skipping the writeSecretsFile step (used by kongkey after it writes its own).
 func (r *Runner) SetSecretsFile(path string) {
 	r.secretsFile = path
+}
+
+// ── pre-flight ────────────────────────────────────────────────────────────────
+
+func (r *Runner) preflight(ctx context.Context) error {
+	if r.dryRun {
+		logger.Step("      [dry-run] skipping pre-flight checks")
+		return nil
+	}
+
+	// Verify cluster is reachable
+	out, err := util.RunCmdOutput(ctx, "kubectl", "cluster-info")
+	if err != nil {
+		return fmt.Errorf("cluster not reachable (is Docker Desktop running?): %w", err)
+	}
+	logger.Step("      cluster: %s", strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0])
+
+	// Warn if on unexpected context
+	ctxOut, _ := util.RunCmdOutput(ctx, "kubectl", "config", "current-context")
+	currentCtx := strings.TrimSpace(string(ctxOut))
+	if currentCtx != "docker-desktop" {
+		logger.Warn("current context is %q, expected docker-desktop", currentCtx)
+	} else {
+		logger.Step("      context: %s", currentCtx)
+	}
+
+	// Warn if stale vault-init.json exists
+	vaultInitPath := filepath.Join(r.outputDir, "vault-init.json")
+	if _, err := os.Stat(vaultInitPath); err == nil {
+		logger.Warn("%s exists from a previous run. Vault init will be skipped. Delete it if this is a truly fresh cluster.", vaultInitPath)
+	}
+
+	// Verify helm is on PATH
+	if _, err := exec.LookPath("helm"); err != nil {
+		return fmt.Errorf("helm not found on PATH: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Runner) writeSecretsFileStep(ctx context.Context) error {
+	return r.writeSecretsFile()
+}
+
+// ── nginx ingress ─────────────────────────────────────────────────────────────
+
+func (r *Runner) ensureNginxIngress(ctx context.Context) error {
+	// Check if already installed
+	out, _ := util.RunCmdOutput(ctx, "kubectl", "get", "ns", "ingress-nginx", "--no-headers")
+	if strings.Contains(string(out), "ingress-nginx") {
+		logger.Step("      nginx ingress already installed — skipping")
+		return nil
+	}
+
+	const manifest = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/" +
+		"controller-v1.12.2/deploy/static/provider/cloud/deploy.yaml"
+
+	logger.Step("      applying %s", manifest)
+	if err := r.kubectl(ctx, "apply", "-f", manifest); err != nil {
+		return fmt.Errorf("install nginx ingress: %w", err)
+	}
+
+	logger.Step("      waiting for ingress controller to become available (up to 2 min)...")
+	return r.kubectl(ctx, "wait",
+		"-n", "ingress-nginx",
+		"deployment/ingress-nginx-controller",
+		"--for=condition=Available",
+		"--timeout=120s",
+	)
+}
+
+// ── Rancher ───────────────────────────────────────────────────────────────────
+
+func (r *Runner) ensureRancher(ctx context.Context) error {
+	// Check if already installed
+	out, _ := util.RunCmdOutput(ctx, "kubectl", "get", "ns", r.cfg.RancherNamespace, "--no-headers")
+	if strings.Contains(string(out), r.cfg.RancherNamespace) {
+		logger.Step("      Rancher namespace %s already exists — skipping", r.cfg.RancherNamespace)
+		return nil
+	}
+	return rancher.NewDeployer(r.cfg, r.dryRun).Run(ctx)
 }
 
 // ── deploy steps ─────────────────────────────────────────────────────────────
@@ -217,6 +316,184 @@ func (r *Runner) deployObs(ctx context.Context) error {
 	)
 }
 
+// ── Nexus ─────────────────────────────────────────────────────────────────────
+
+func (r *Runner) initNexusDockerRepo(ctx context.Context) error {
+	if r.dryRun {
+		logger.Step("      [dry-run] would initialize Nexus Docker hosted repo")
+		return nil
+	}
+
+	nexusURL := fmt.Sprintf("http://localhost:%d", r.cfg.NexusUINodePort)
+	statusURL := nexusURL + "/service/rest/v1/status"
+
+	logger.Debug("waiting for Nexus at %s (up to 5 min)...", nexusURL)
+	if err := util.PollHTTP(ctx, util.PollConfig{Timeout: 5 * time.Minute}, nil, http.MethodGet, statusURL, http.StatusOK, nil); err != nil {
+		logger.Warn("Nexus did not become ready within 5 min, continuing anyway")
+	} else {
+		logger.Step("      Nexus is up")
+	}
+
+	// Read initial admin password from pod
+	podOut, err := util.RunCmdOutput(ctx,
+		"kubectl", "get", "pod",
+		"-n", r.cfg.NamespaceInfra,
+		"-l", "app=nexus",
+		"-o", "jsonpath={.items[0].metadata.name}",
+	)
+	if err != nil || strings.TrimSpace(string(podOut)) == "" {
+		logger.Warn("could not find Nexus pod — skipping Docker repo init")
+		return nil
+	}
+	nexusPod := strings.TrimSpace(string(podOut))
+
+	initPassOut, err := util.RunCmdOutput(ctx,
+		"kubectl", "exec", "-n", r.cfg.NamespaceInfra, nexusPod, "--",
+		"cat", "/nexus-data/admin.password",
+	)
+	if err != nil {
+		logger.Step("      NOTE: /nexus-data/admin.password not found — Nexus may already be configured")
+		return nil
+	}
+	initPass := strings.TrimSpace(string(initPassOut))
+
+	// Change admin password
+	newPass := r.creds.NexusAdminPassword
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut,
+		nexusURL+"/service/rest/v1/security/users/admin/change-password",
+		strings.NewReader(newPass),
+	)
+	if err != nil {
+		logger.Warn("could not build Nexus password request: %v", err)
+	} else {
+		req.SetBasicAuth("admin", initPass)
+		req.Header.Set("Content-Type", "text/plain")
+		resp, doErr := http.DefaultClient.Do(req)
+		if doErr != nil {
+			logger.Warn("could not change Nexus admin password: %v", doErr)
+		} else {
+			resp.Body.Close()
+			logger.Step("      Nexus admin password updated")
+		}
+	}
+
+	// Create Docker hosted repo (idempotent: ignore 400 if already exists)
+	repoBody := `{
+		"name": "jeeb",
+		"online": true,
+		"storage": {"blobStoreName": "default", "strictContentTypeValidation": true, "writePolicy": "ALLOW"},
+		"docker": {"v1Enabled": false, "forceBasicAuth": false, "httpPort": 5000}
+	}`
+	req2, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		nexusURL+"/service/rest/v1/repositories/docker/hosted",
+		strings.NewReader(repoBody),
+	)
+	if err != nil {
+		logger.Warn("could not build Nexus repo request: %v", err)
+	} else {
+		req2.SetBasicAuth("admin", newPass)
+		req2.Header.Set("Content-Type", "application/json")
+		resp2, doErr := http.DefaultClient.Do(req2)
+		if doErr != nil {
+			logger.Warn("could not create Nexus Docker repo: %v", doErr)
+		} else {
+			resp2.Body.Close()
+			if resp2.StatusCode == 201 {
+				logger.Step("      created Docker hosted repo 'jeeb' on port 5000")
+			} else if resp2.StatusCode == 400 {
+				logger.Step("      Docker hosted repo already exists — skipping")
+			}
+		}
+	}
+
+	return nil
+}
+
+// ── Keycloak wait ─────────────────────────────────────────────────────────────
+
+func (r *Runner) waitForKeycloak(ctx context.Context) error {
+	url := fmt.Sprintf("http://localhost:%d/realms/%s", r.cfg.KeycloakNodePort, r.cfg.KeycloakRealm)
+	logger.Debug("polling %s (up to 5 min)...", url)
+	if err := util.PollHTTP(ctx, util.PollConfig{Timeout: 5 * time.Minute}, nil, http.MethodGet, url, http.StatusOK, nil); err != nil {
+		return fmt.Errorf("timed out waiting for Keycloak at %s", url)
+	}
+	logger.Step("      Keycloak ready")
+	return nil
+}
+
+// ── Kong key fetch ────────────────────────────────────────────────────────────
+
+func (r *Runner) fetchAndApplyKongKey(ctx context.Context) error {
+	if r.dryRun {
+		logger.Step("      [dry-run] would fetch Kong RS256 key from Keycloak")
+		return nil
+	}
+
+	jwksURL := fmt.Sprintf("http://localhost:%d/realms/%s/protocol/openid-connect/certs",
+		r.cfg.KeycloakNodePort, r.cfg.KeycloakRealm)
+	pemKey, err := util.FetchRS256PEM(ctx, jwksURL)
+	if err != nil {
+		return fmt.Errorf("fetch Kong key from Keycloak: %w", err)
+	}
+	logger.Debug("fetched RS256 public key from Keycloak JWKS")
+
+	creds, err := r.writeKongKeyToCreds(pemKey)
+	if err != nil {
+		return fmt.Errorf("update credentials with Kong key: %w", err)
+	}
+
+	path, err := WriteSecretsValuesFile(r.outputDir, creds, r.cfg.NexusRegistry)
+	if err != nil {
+		return fmt.Errorf("regenerate values-secrets.yaml: %w", err)
+	}
+	r.secretsFile = path
+	r.creds = creds
+	logger.Step("      updated secrets.yaml and values-secrets.yaml")
+	return nil
+}
+
+// writeKongKeyToCreds writes the PEM key into secrets.yaml and reloads it.
+func (r *Runner) writeKongKeyToCreds(pemKey string) (*credentials.Credentials, error) {
+	data, err := os.ReadFile(r.secretsPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", r.secretsPath, err)
+	}
+
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", r.secretsPath, err)
+	}
+
+	kong, ok := raw["kong"].(map[string]interface{})
+	if !ok {
+		kong = map[string]interface{}{}
+		raw["kong"] = kong
+	}
+	kong["keycloakPublicKey"] = pemKey
+
+	updated, err := yaml.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("marshal credentials: %w", err)
+	}
+	if err := os.WriteFile(r.secretsPath, updated, 0600); err != nil {
+		return nil, fmt.Errorf("write %s: %w", r.secretsPath, err)
+	}
+
+	return credentials.Load(r.secretsPath)
+}
+
+// ── Kong wait ─────────────────────────────────────────────────────────────────
+
+func (r *Runner) waitForKong(ctx context.Context) error {
+	logger.Step("      waiting for Kong deployment to become available (up to 2 min)...")
+	return r.kubectl(ctx, "wait",
+		"-n", r.cfg.NamespaceInfra,
+		"deployment/kong",
+		"--for=condition=Available",
+		"--timeout=120s",
+	)
+}
+
 // ── Vault steps ───────────────────────────────────────────────────────────────
 
 func (r *Runner) waitForVault(ctx context.Context) error {
@@ -237,20 +514,20 @@ func (r *Runner) initVault(ctx context.Context) error {
 	outPath := filepath.Join(r.outputDir, "vault-init.json")
 
 	if _, err := os.Stat(outPath); err == nil {
-		fmt.Printf("      vault-init.json already exists — skipping init\n")
+		logger.Step("      vault-init.json already exists — skipping init")
 		return nil
 	}
 
 	if r.dryRun {
-		fmt.Printf("      kubectl exec -n %s %s -- vault operator init -format=json > %s\n",
+		logger.Step("      kubectl exec -n %s %s -- vault operator init -format=json > %s",
 			r.cfg.NamespaceInfra, r.cfg.VaultPod, outPath)
 		return nil
 	}
 
-	out, err := exec.CommandContext(ctx,
+	out, err := util.RunCmdOutput(ctx,
 		"kubectl", "exec", "-n", r.cfg.NamespaceInfra, r.cfg.VaultPod, "--",
 		"vault", "operator", "init", "-format=json",
-	).Output()
+	)
 	if err != nil {
 		return fmt.Errorf("vault init: %w", err)
 	}
@@ -259,7 +536,7 @@ func (r *Runner) initVault(ctx context.Context) error {
 		return fmt.Errorf("write vault-init.json: %w", err)
 	}
 
-	fmt.Printf("      saved to %s — keep this file safe!\n", outPath)
+	logger.Step("      saved to %s — keep this file safe!", outPath)
 	return nil
 }
 
@@ -273,7 +550,7 @@ func (r *Runner) storeUnsealKeysApply(ctx context.Context) error {
 		return fmt.Errorf("expected at least 3 unseal keys, got %d", len(init.UnsealKeysB64))
 	}
 
-	yaml := fmt.Sprintf(`apiVersion: v1
+	yamlBody := fmt.Sprintf(`apiVersion: v1
 kind: Secret
 metadata:
   name: vault-unseal-keys
@@ -285,15 +562,11 @@ stringData:
 `, r.cfg.NamespaceInfra, init.UnsealKeysB64[0], init.UnsealKeysB64[1], init.UnsealKeysB64[2])
 
 	if r.dryRun {
-		fmt.Printf("      kubectl apply -f - (vault-unseal-keys secret in %s)\n", r.cfg.NamespaceInfra)
+		logger.Step("      kubectl apply -f - (vault-unseal-keys secret in %s)", r.cfg.NamespaceInfra)
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", "-")
-	cmd.Stdin = strings.NewReader(yaml)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return util.RunCmdStdin(ctx, strings.NewReader(yamlBody), "kubectl", "apply", "-f", "-")
 }
 
 func (r *Runner) unsealVault(ctx context.Context) error {
@@ -303,7 +576,7 @@ func (r *Runner) unsealVault(ctx context.Context) error {
 	}
 
 	for i, key := range init.UnsealKeysB64[:3] {
-		fmt.Printf("      unsealing with key %d/3...\n", i+1)
+		logger.Step("      unsealing with key %d/3...", i+1)
 		if err := r.vaultExec(ctx, init.RootToken, "operator", "unseal", key); err != nil {
 			return fmt.Errorf("unseal key %d: %w", i+1, err)
 		}
@@ -386,7 +659,6 @@ func (r *Runner) configureVault(ctx context.Context) error {
 				if written[s.path] {
 					continue
 				}
-				// vault kv put uses CLI path format (secret/X), not API format (secret/data/X)
 				args := []string{"kv", "put", config.KVCLIPath(s.path)}
 				for _, kv := range secrets {
 					if kv.path == s.path {
@@ -409,7 +681,6 @@ func (r *Runner) configureVault(ctx context.Context) error {
 
 	for _, role := range roles {
 		role := role
-		// VaultPath is already in API format (secret/data/...) — use directly in policy
 		policy := fmt.Sprintf(`path "%s" { capabilities = ["read"] }`, role.vaultPath)
 		steps = append(steps,
 			func() error {
@@ -444,46 +715,82 @@ func (r *Runner) patchCoreDNS(ctx context.Context) error {
 	coreDNSPatch := filepath.Join(filepath.Dir(r.chartsDir), "coredns-patch.yaml")
 
 	if r.dryRun {
-		fmt.Printf("      kubectl get svc -n %s -l %s -o jsonpath='{.items[0].spec.clusterIP}'\n",
-			r.cfg.NamespaceDev, r.cfg.IngressLabel)
-		fmt.Printf("      [substitute IP in %s and pipe to] kubectl apply -f -\n", coreDNSPatch)
+		logger.Step("      [dry-run] would get nginx ingress ClusterIP and apply coredns-patch.yaml")
 		return nil
 	}
 
-	out, err := exec.CommandContext(ctx,
+	// Get nginx ingress controller ClusterIP
+	out, err := util.RunCmdOutput(ctx,
 		"kubectl", "get", "svc",
-		"-n", r.cfg.NamespaceDev,
-		"-l", r.cfg.IngressLabel,
+		"-n", "ingress-nginx",
+		"-l", "app.kubernetes.io/component=controller",
 		"-o", "jsonpath={.items[0].spec.clusterIP}",
-	).Output()
+	)
 
 	ip := strings.TrimSpace(string(out))
 	if err != nil || ip == "" {
-		fmt.Printf("      WARNING: could not auto-detect ingress ClusterIP (%v)\n", err)
-		fmt.Println("      Update the IP in k8s/coredns-patch.yaml manually, then:")
-		fmt.Println("      kubectl apply -f k8s/coredns-patch.yaml")
+		logger.Warn("could not auto-detect nginx ingress ClusterIP (%v)", err)
+		logger.StepMsg("      Update the IP in k8s/coredns-patch.yaml manually, then:")
+		logger.StepMsg("      kubectl apply -f k8s/coredns-patch.yaml")
 		return nil
 	}
 
-	fmt.Printf("      ingress ClusterIP: %s\n", ip)
+	logger.Step("      nginx ingress ClusterIP: %s", ip)
 
 	patchYAML, err := os.ReadFile(coreDNSPatch)
 	if err != nil {
-		fmt.Printf("      WARNING: could not read %s: %v\n", coreDNSPatch, err)
-		fmt.Println("      Apply manually: kubectl apply -f k8s/coredns-patch.yaml")
+		logger.Warn("could not read %s: %v", coreDNSPatch, err)
 		return nil
 	}
 
 	updated := substituteCoreDNSIP(string(patchYAML), ip)
 
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", "-")
-	cmd.Stdin = bytes.NewReader([]byte(updated))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := util.RunCmdStdin(ctx, bytes.NewReader([]byte(updated)), "kubectl", "apply", "-f", "-"); err != nil {
 		return fmt.Errorf("kubectl apply coredns patch: %w", err)
 	}
 	return nil
+}
+
+func (r *Runner) waitForCoreDNS(ctx context.Context) error {
+	if err := r.kubectl(ctx, "rollout", "restart", "deployment/coredns", "-n", "kube-system"); err != nil {
+		return fmt.Errorf("restart coredns: %w", err)
+	}
+	return r.kubectl(ctx, "rollout", "status", "deployment/coredns", "-n", "kube-system", "--timeout=60s")
+}
+
+func (r *Runner) verifyAllDNS(ctx context.Context) error {
+	if r.dryRun {
+		logger.Step("      [dry-run] would verify .local DNS resolution inside cluster")
+		return nil
+	}
+
+	domains := []string{
+		"jeeb-dev.local", "api.jeeb-dev.local", "auth.jeeb-dev.local", "learning.jeeb-dev.local",
+		"jenkins.jeeb.local", "nexus.jeeb.local", "sonarqube.jeeb.local", "vault.jeeb.local",
+		"grafana.jeeb.local", "rancher.jeeb-infra.local",
+	}
+
+	pass, fail := 0, 0
+	for i, domain := range domains {
+		podName := fmt.Sprintf("dns-setup-%d", i+1)
+		err := util.RunCmd(ctx, "kubectl", "run", podName,
+			"--image=busybox", "--restart=Never", "--rm", "--attach",
+			"--", "nslookup", domain,
+		)
+		if err != nil {
+			logger.Warn("%s — not resolved", domain)
+			fail++
+		} else {
+			logger.Step("      [OK]   %s", domain)
+			pass++
+		}
+	}
+
+	logger.Step("      DNS: %d/%d domains resolved", pass, pass+fail)
+	if fail > 0 {
+		logger.StepMsg("      Some domains failed. Run 'k8s-manager maintain' to diagnose.")
+	}
+	return nil // non-fatal
 }
 
 func substituteCoreDNSIP(yaml, newIP string) string {
@@ -513,14 +820,7 @@ func isIPLike(s string) bool {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func (r *Runner) kubectl(ctx context.Context, args ...string) error {
-	if r.dryRun {
-		fmt.Printf("      kubectl %s\n", strings.Join(args, " "))
-		return nil
-	}
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return util.DryRunOrExec(ctx, r.dryRun, "kubectl", args...)
 }
 
 func (r *Runner) vaultExec(ctx context.Context, token string, args ...string) error {
@@ -536,20 +836,16 @@ func (r *Runner) vaultExec(ctx context.Context, token string, args ...string) er
 
 func (r *Runner) vaultWritePolicy(ctx context.Context, token, name, policy string) error {
 	if r.dryRun {
-		fmt.Printf("      vault policy write %s -\n", name)
+		logger.Step("      vault policy write %s -", name)
 		return nil
 	}
-	cmd := exec.CommandContext(ctx,
+	return util.RunCmdStdin(ctx, strings.NewReader(policy),
 		"kubectl", "exec", "-i", "-n", r.cfg.NamespaceInfra, r.cfg.VaultPod, "--",
 		"env",
 		fmt.Sprintf("VAULT_ADDR=%s", r.cfg.VaultAddr),
 		"VAULT_TOKEN="+token,
 		"vault", "policy", "write", name, "-",
 	)
-	cmd.Stdin = strings.NewReader(policy)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func (r *Runner) loadVaultInit() (*vaultInitOutput, error) {
@@ -566,13 +862,12 @@ func (r *Runner) loadVaultInit() (*vaultInitOutput, error) {
 }
 
 func (r *Runner) seedJenkins(ctx context.Context) error {
-	// Derive repo root from chartsDir (k8s/charts → k8s → repo root).
 	repoRoot := filepath.Dir(filepath.Dir(r.chartsDir))
 	groovyPath := filepath.Join(repoRoot, "jenkins", "jobs", "seed.groovy")
 
 	if _, err := os.Stat(groovyPath); err != nil {
-		fmt.Printf("      WARNING: seed.groovy not found at %s\n", groovyPath)
-		fmt.Println("      Run 'k8s-manager seed --groovy-path <path>' after Jenkins is ready")
+		logger.Warn("seed.groovy not found at %s", groovyPath)
+		logger.StepMsg("      Run 'k8s-manager seed --groovy-path <path>' after Jenkins is ready")
 		return nil
 	}
 
@@ -580,13 +875,14 @@ func (r *Runner) seedJenkins(ctx context.Context) error {
 }
 
 func (r *Runner) printAccessTable() {
-	fmt.Printf(`
+	logger.Step(`
   %s (infra):
     Jenkins    http://localhost:%d
     Nexus      http://localhost:%d
     SonarQube  http://localhost:%d
     Kong       http://localhost:%d
     Vault      http://localhost:%d
+    Rancher    https://localhost:%d
 
   %s (dev):
     Frontend          http://localhost:%d
@@ -606,6 +902,7 @@ func (r *Runner) printAccessTable() {
 		r.cfg.SonarQubeNodePort,
 		r.cfg.KongNodePort,
 		r.cfg.VaultNodePort,
+		r.cfg.RancherNodePort,
 		r.cfg.NamespaceDev,
 		r.cfg.FrontendNodePort,
 		r.cfg.BackendNodePort,

@@ -72,7 +72,9 @@
       "Bash(notebooklm source *)",
       "Bash(notebooklm use *)",
       "Bash(dir /s \"D:\\\\personal\\\\jeeb\\\\k8s-manager\")",
-      "Bash(Get-ChildItem *)"
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)"
     ]
   },
   "mcpServers": {
