@@ -18,8 +18,6 @@ data:
     GO_ENV={{ .Values.global.env }}
     PORT={{ "{{" }} .Data.data.PORT {{ "}}" }}
     LOG_LEVEL={{ "{{" }} .Data.data.LOG_LEVEL {{ "}}" }}
-    READ_TIMEOUT={{ "{{" }} .Data.data.READ_TIMEOUT {{ "}}" }}
-    WRITE_TIMEOUT={{ "{{" }} .Data.data.WRITE_TIMEOUT {{ "}}" }}
     MONGO_DATABASE={{ "{{" }} .Data.data.MONGO_DATABASE {{ "}}" }}
     MONGO_URI={{ "{{" }} .Data.data.MONGO_URI {{ "}}" }}
     KEYCLOAK_URL={{ "{{" }} .Data.data.KEYCLOAK_URL {{ "}}" }}
