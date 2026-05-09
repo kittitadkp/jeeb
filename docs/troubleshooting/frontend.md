@@ -5,6 +5,7 @@
 - Main frontend uses `VITE_API_URL`, not `/api`, by default.
 - Check `frontend/env/.env.local` and confirm `http://localhost:30080` is reachable.
 - Learning frontend defaults to `http://localhost:30088/learning`.
+- If the browser shows `ERR_CERT_AUTHORITY_INVALID` for `https://*.jeeb-dev.local`, run `cd k8s-manager; go run ./cmd/k8s-manager trust-cert` on Windows.
 
 ## Login loop or blank screen after login
 

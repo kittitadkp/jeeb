@@ -6,6 +6,15 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    {{- with .Values.ingress.cors }}
+    {{- if .enabled }}
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: {{ .allowOrigin | quote }}
+    nginx.ingress.kubernetes.io/cors-allow-methods: {{ .allowMethods | quote }}
+    nginx.ingress.kubernetes.io/cors-allow-headers: {{ .allowHeaders | quote }}
+    nginx.ingress.kubernetes.io/cors-allow-credentials: {{ .allowCredentials | quote }}
+    {{- end }}
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   tls:

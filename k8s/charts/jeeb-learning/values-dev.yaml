@@ -4,6 +4,11 @@ global:
   domain: jeeb-dev.local
   imageTag: latest
 
+ingress:
+  cors:
+    enabled: true
+    allowOrigin: https://learning.jeeb-dev.local
+
 backend:
   vault:
     path: secret/data/jeeb/learning/backend/develop

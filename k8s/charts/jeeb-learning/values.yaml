@@ -7,6 +7,12 @@ global:
 ingress:
   className: nginx
   domain: jeeb-dev.local
+  cors:
+    enabled: false
+    allowOrigin: ""
+    allowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    allowHeaders: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+    allowCredentials: "true"
 
 backend:
   replicas: 1

@@ -7,6 +7,11 @@ global:
 keycloak:
   hostnameUrl: https://auth.jeeb-dev.local
 
+ingress:
+  cors:
+    enabled: true
+    allowOrigin: https://jeeb-dev.local
+
 backend:
   vault:
     path: secret/data/jeeb/backend/develop
@@ -16,4 +21,3 @@ frontend:
   vault:
     path: secret/data/jeeb/frontend/develop
     envFile: .env.develop
-

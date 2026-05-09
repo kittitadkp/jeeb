@@ -26,6 +26,7 @@ deploy [infra] [data] [app] [learning] [obs]
 seed
 check
 maintain
+trust-cert
 validate
 kong-key
 patch-jenkins-creds
@@ -35,6 +36,12 @@ status
 restart <deployment>
 logs <deployment>
 rancher
+```
+
+Example:
+
+```powershell
+go run ./cmd/k8s-manager trust-cert
 ```
 
 ## `setup` flow
@@ -88,4 +95,5 @@ After `setup`, the CLI instructs you to run Jenkins pipelines, publish images to
 - `deploy` re-runs Helm upgrades without reinitializing Vault.
 - `seed` creates the Jenkins seed job from `jenkins/jobs/seed.groovy`.
 - `check` is the fast health gate; `maintain` prints diagnosis and fix commands.
+- `trust-cert` imports `jeeb-dev-tls` into the Windows root trust store. The default `current-user` scope does not require admin rights.
 - `coredns-patch.yaml` contains a concrete ingress ClusterIP and may need regeneration after a cluster reset.

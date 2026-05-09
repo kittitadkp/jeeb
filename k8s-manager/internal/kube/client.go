@@ -77,6 +77,14 @@ func (c *Client) PrintStatus(ctx context.Context, namespace string) error {
 	return nil
 }
 
+func (c *Client) GetSecret(ctx context.Context, namespace, name string) (*corev1.Secret, error) {
+	secret, err := c.cs.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get secret %s/%s: %w", namespace, name, err)
+	}
+	return secret, nil
+}
+
 func (c *Client) RestartDeployment(ctx context.Context, namespace, name string) error {
 	dep, err := c.cs.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {

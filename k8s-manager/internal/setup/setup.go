@@ -808,7 +808,7 @@ func (r *Runner) verifyAllDNS(ctx context.Context) error {
 	}
 
 	domains := []string{
-		"jeeb-dev.local", "api.jeeb-dev.local", "auth.jeeb-dev.local", "learning.jeeb-dev.local",
+		"jeeb-dev.local", "api.jeeb-dev.local", "auth.jeeb-dev.local", "learning.jeeb-dev.local", "learning-api.jeeb-dev.local",
 		"jenkins.jeeb.local", "nexus.jeeb.local", "sonarqube.jeeb.local", "vault.jeeb.local",
 		"grafana.jeeb.local", "rancher.jeeb-infra.local",
 	}

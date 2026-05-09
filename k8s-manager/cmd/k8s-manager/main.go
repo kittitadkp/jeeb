@@ -18,6 +18,7 @@ import (
 	"k8s-manager/internal/rancher"
 	"k8s-manager/internal/redeploy"
 	"k8s-manager/internal/setup"
+	"k8s-manager/internal/trustcert"
 	"k8s-manager/internal/validate"
 
 	"github.com/spf13/cobra"
@@ -69,6 +70,7 @@ func main() {
 		newKongKeyCmd(&secretsFile, &configFile, &chartsDir, &outputDir, &dryRun),
 		newCheckCmd(&secretsFile, &configFile, &outputDir),
 		newMaintainCmd(&secretsFile, &configFile, &outputDir),
+		newTrustCertCmd(&kubeconfig, &configFile, &dryRun),
 		newPatchJenkinsCredsCmd(&secretsFile, &dryRun),
 		newRedeployJenkinsCmd(&configFile, &dryRun),
 	)
@@ -263,6 +265,42 @@ No commands are executed — this is a read-only diagnosis report.`,
 			return maintain.RunReport(cmd.Context(), cfg, *outputDir)
 		},
 	}
+}
+
+func newTrustCertCmd(kubeconfig, configFile *string, dryRun *bool) *cobra.Command {
+	var namespace string
+	var secretName string
+	var certKey string
+	var scope string
+
+	cmd := &cobra.Command{
+		Use:   "trust-cert",
+		Short: "Trust the jeeb TLS certificate in the local Windows root store",
+		Long: `Fetches a certificate from a Kubernetes TLS secret and imports it into the
+local Windows Trusted Root Certification Authorities store.
+
+Defaults target the jeeb local wildcard cert:
+  - namespace: dev namespace from config.yaml (or jeeb-dev)
+  - secret:    jeeb-dev-tls
+  - key:       tls.crt
+
+Use --scope current-user for a per-user trust entry without admin rights.
+Use --scope local-machine for machine-wide trust from an elevated shell.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.LoadFromFile(resolvedConfigFile(*configFile))
+			targetNamespace := namespace
+			if targetNamespace == "" {
+				targetNamespace = cfg.NamespaceDev
+			}
+			return trustcert.NewImporter(*kubeconfig, targetNamespace, secretName, certKey, scope, *dryRun).Run(cmd.Context())
+		},
+	}
+
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace containing the TLS secret (default: dev namespace from config)")
+	cmd.Flags().StringVar(&secretName, "secret", "jeeb-dev-tls", "TLS secret name")
+	cmd.Flags().StringVar(&certKey, "key", "tls.crt", "secret data key containing the certificate PEM")
+	cmd.Flags().StringVar(&scope, "scope", trustcert.ScopeCurrentUser, "Windows trust store scope: current-user or local-machine")
+	return cmd
 }
 
 func newNamespaceCmd(kubeconfig *string) *cobra.Command {

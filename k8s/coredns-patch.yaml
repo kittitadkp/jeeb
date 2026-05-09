@@ -14,7 +14,7 @@ data:
         }
         ready
         hosts {
-           10.109.28.106 jeeb-dev.local api.jeeb-dev.local auth.jeeb-dev.local learning.jeeb-dev.local
+           10.109.28.106 jeeb-dev.local api.jeeb-dev.local auth.jeeb-dev.local learning.jeeb-dev.local learning-api.jeeb-dev.local
            10.109.28.106 jenkins.jeeb.local nexus.jeeb.local sonarqube.jeeb.local vault.jeeb.local
            10.109.28.106 grafana.jeeb.local
            10.109.28.106 rancher.jeeb-infra.local
