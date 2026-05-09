@@ -68,23 +68,55 @@ data:
     jobs:
       - script: |
           freeStyleJob('jeeb-seed') {
-            description('Seed job - creates all jeeb pipelines from jobs/seed.groovy')
-            scm {
-              git {
-                remote {
-                  url('{{ .Values.jenkins.jenkinsRepo }}')
-                  credentials('github-creds')
-                }
-                branches('*/main')
-                extensions { cleanBeforeCheckout() }
-              }
-            }
-            triggers {
-              scm('H/5 * * * *')
-            }
+            description('Seed job - creates all jeeb pipelines (inline, no SCM pull)')
             steps {
               jobDsl {
-                targets('jobs/seed.groovy')
+                scriptText('''
+                  import jenkins.model.Jenkins
+
+                  def stale = Jenkins.instance.getItem('seed')
+                  if (stale) { stale.delete() }
+
+                  folder('dev') {
+                    description('DEV environment pipelines')
+                  }
+
+                  def pipelines = [
+                    [name: 'jeeb-backend',           path: 'pipelines/backend/Jenkinsfile',           gitUrl: '{{ .Values.jenkins.repos.backend }}'],
+                    [name: 'jeeb-frontend',          path: 'pipelines/frontend/Jenkinsfile',          gitUrl: '{{ .Values.jenkins.repos.frontend }}'],
+                    [name: 'jeeb-learning-backend',  path: 'pipelines/learning-backend/Jenkinsfile',  gitUrl: '{{ .Values.jenkins.repos.learningBackend }}'],
+                    [name: 'jeeb-learning-frontend', path: 'pipelines/learning-frontend/Jenkinsfile', gitUrl: '{{ .Values.jenkins.repos.learningFrontend }}'],
+                  ]
+
+                  pipelines.each { p ->
+                    pipelineJob("dev/${p.name}") {
+                      description("${p.name} pipeline - dev")
+                      parameters {
+                        stringParam('BRANCH', 'main', 'Branch to build')
+                        stringParam('GIT_URL', p.gitUrl, 'Repository URL')
+                        stringParam('HELM_RELEASE', 'jeeb-dev', 'Helm release name')
+                        stringParam('DEPLOY_NAMESPACE', 'jeeb-dev', 'Deploy namespace')
+                        booleanParam('SKIP_SONAR', true, 'Skip Test & SonarQube stage')
+                      }
+                      definition {
+                        cpsScm {
+                          scm {
+                            git {
+                              remote {
+                                url('{{ .Values.jenkins.jenkinsRepo }}')
+                                credentials('github-creds')
+                              }
+                              branches('*/main')
+                              extensions { cleanBeforeCheckout() }
+                            }
+                          }
+                          scriptPath(p.path)
+                          lightweight(true)
+                        }
+                      }
+                    }
+                  }
+                ''')
                 sandbox(false)
                 ignoreExisting(false)
               }

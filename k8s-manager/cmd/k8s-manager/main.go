@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"k8s-manager/internal/config"
 	"k8s-manager/internal/credentials"
@@ -15,6 +16,7 @@ import (
 	"k8s-manager/internal/logger"
 	"k8s-manager/internal/maintain"
 	"k8s-manager/internal/rancher"
+	"k8s-manager/internal/redeploy"
 	"k8s-manager/internal/setup"
 	"k8s-manager/internal/validate"
 
@@ -68,6 +70,7 @@ func main() {
 		newCheckCmd(&secretsFile, &configFile, &outputDir),
 		newMaintainCmd(&secretsFile, &configFile, &outputDir),
 		newPatchJenkinsCredsCmd(&secretsFile, &dryRun),
+		newRedeployJenkinsCmd(&configFile, &dryRun),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -361,6 +364,30 @@ nexus-user, nexus-password, sonar-token.`,
 	}
 
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "jeeb-infra", "namespace where Jenkins is deployed")
+	return cmd
+}
+
+func newRedeployJenkinsCmd(configFile *string, dryRun *bool) *cobra.Command {
+	var namespace string
+	var timeout time.Duration
+
+	cmd := &cobra.Command{
+		Use:   "redeploy-jenkins",
+		Short: "Rollout-restart Jenkins and wait until it is healthy",
+		Long: `Restarts only the Jenkins deployment and waits for it to be ready.
+
+Steps:
+  1. kubectl rollout restart deployment/jenkins
+  2. kubectl rollout status  (waits for pods to come up)
+  3. poll /login endpoint   (confirms Jenkins is serving traffic)`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.LoadFromFile(resolvedConfigFile(*configFile))
+			return redeploy.NewJenkinsRedeployer(cfg, namespace, timeout, *dryRun).Run(cmd.Context())
+		},
+	}
+
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "jeeb-infra", "namespace where Jenkins is deployed")
+	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "rollout + health-check timeout")
 	return cmd
 }
 

@@ -21,6 +21,11 @@ jenkins:
   nodePort: 30082
   agentNodePort: 30500
   jenkinsRepo: "https://github.com/kittitadkp/jeeb-jenkins.git"
+  repos:
+    backend: ""
+    frontend: ""
+    learningBackend: ""
+    learningFrontend: ""
   credentials:
     adminPassword: ""
     githubUser: ""
@@ -47,6 +52,8 @@ jenkins:
     - sonar
     - github
     - github-branch-source
+    - dark-theme
+    - theme-manager
 
 nexus:
   image: sonatype/nexus3:latest
