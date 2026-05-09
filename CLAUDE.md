@@ -4,33 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-This is a monorepo containing infrastructure only. Application code lives in separate folders (excluded from git):
+This is a full monorepo — all application and infrastructure code lives here:
 
 ```
 jeeb/
-  k8s/          # All Kubernetes manifests — the primary concern of this repo
-  docs/         # Architecture, API reference, feature specs, guides
-  backend/      # Go API (not committed here — has its own repo)
-  frontend/     # React app (not committed here — has its own repo)
-  jenkins/      # CI/CD pipelines and setup scripts (not committed here)
+  backend/            # Go API (main app — workouts, study, sleep, finance, events)
+  frontend/           # React app (main app)
+  learning-backend/   # Go API (learning platform — topics, items, progress)
+  learning-frontend/  # React app (learning platform)
+  jeeb-react-shared/  # Shared React component library (@jeeb/react-shared on Nexus)
+  k8s/                # Helm charts + cluster config
+  k8s-manager/        # Go CLI for bootstrapping and operating the K8s stack
+  jenkins/            # CI/CD pipelines and Groovy job definitions
+  docs/               # Architecture, API reference, feature specs, guides
 ```
 
 ## Kubernetes
 
-All services run in the `jeeb` namespace on Docker Desktop Kubernetes.
+All dev services run in the `jeeb-dev` namespace on Docker Desktop Kubernetes.
 
-```bash
-# Apply everything
-bash k8s/apply.sh
+### Cluster management (k8s-manager CLI)
 
-# Apply a single service
-kubectl apply -f k8s/app/backend/
+`k8s-manager` is the primary tool for cluster operations — prefer it over running kubectl/helm directly.
 
-# Common operations
-kubectl get pods -n jeeb
-kubectl logs -n jeeb deployment/backend
-kubectl rollout restart deployment/backend -n jeeb
-kubectl exec -it -n jeeb deployment/backend -- sh
+```powershell
+# First-time setup
+Copy-Item k8s-manager/env/secrets.yaml.example k8s-manager/env/secrets.yaml
+go run ./cmd/k8s-manager validate
+
+# Full bootstrap
+go run ./cmd/k8s-manager setup
+
+# Deploy specific charts
+go run ./cmd/k8s-manager deploy app
+go run ./cmd/k8s-manager deploy learning
+go run ./cmd/k8s-manager deploy infra
+go run ./cmd/k8s-manager deploy obs
+
+# Operations
+go run ./cmd/k8s-manager check
+go run ./cmd/k8s-manager maintain
+go run ./cmd/k8s-manager status
+go run ./cmd/k8s-manager restart <deployment>
+go run ./cmd/k8s-manager logs <deployment>
+go run ./cmd/k8s-manager trust-cert
+go run ./cmd/k8s-manager kong-key
+go run ./cmd/k8s-manager seed
 ```
 
 ### NodePort map
@@ -74,107 +93,164 @@ kubectl exec -it -n jeeb deployment/backend -- sh
 
 ```
 k8s/
-  apply.sh              # deploy all three charts
-  apply-dev.sh          # deploy jeeb-app only
-  apply-obs.sh          # deploy jeeb-obs only
-  apply-rancher.sh      # install cert-manager + Rancher via external Helm repos
   coredns-patch.yaml    # kubectl apply to kube-system for in-cluster .local DNS
-  vault/
-    setup-vault.sh      # one-time Vault config (KV engine, policies, K8s auth roles)
-    store-unseal-keys.sh  # store Vault unseal keys in jeeb-infra secret for auto-unseal
+  tls-issuer.yaml       # cert-manager ClusterIssuer
   charts/
-    jeeb-app/           # frontend, backend, learning, keycloak, mongodb (jeeb-dev ns)
+    jeeb-app/           # frontend, backend (jeeb-dev ns)
+    jeeb-data/          # mongodb, keycloak — shared data services (jeeb-dev ns)
+    jeeb-learning/      # learning-backend, learning-frontend (jeeb-dev ns)
     jeeb-infra/         # jenkins, nexus, sonarqube, vault, kong (jeeb-infra ns)
     jeeb-obs/           # prometheus, loki, tempo, grafana, promtail (jeeb-obs ns)
 ```
 
-Backend env vars come from `k8s/app/backend/configmap.yaml` (non-secret) and `mongo-secret` (MONGO_URI).
-
-## Backend (Go)
+## Backend (Go — main app)
 
 ```bash
 cd backend
-go test ./...                        # all tests
-go test ./internal/usecase/...       # single package
-go build ./cmd/api/...               # build binary
-go run ./cmd/api/main.go             # run locally (requires .env)
+go test ./...
+go build ./cmd/api/...
+go run ./cmd/api/main.go   # requires .env
 ```
 
-**Stack:** Go 1.22, Chi router, go-oidc/v3, mongo-driver, envconfig, validator/v10
+**Stack:** Go 1.22, Chi router, go-oidc/v3, mongo-driver, envconfig, validator/v10, slog
 
 **Architecture — Clean/Hexagonal:**
 ```
 internal/
-  domain/           # Pure structs + business rules, no imports
+  domain/           # Pure structs + business rules
   usecase/          # Orchestrates domain logic, depends on port interfaces
-  port/in/          # UseCase interfaces (called by handlers)
-  port/out/         # Repository + integration interfaces (implemented by adapters)
-  adapter/in/http/  # Chi handlers → call use cases via port/in
-  adapter/out/      # MongoDB repos + external integrations
-  config/           # envconfig structs loaded from environment
+  port/in/          # UseCase interfaces
+  port/out/         # Repository + integration interfaces
+  adapter/in/http/  # Chi handlers → use cases
+  adapter/out/
+    mongo/          # MongoDB repositories
+    integration/    # External integrations
+  config/           # envconfig structs
+cmd/api/            # Entry point + exercise master seeding
 ```
 
-Each feature (workout, study, sleep, finance, event) has its own files at every layer. Adding a feature means creating one file per layer and wiring it in `cmd/api/main.go`.
-
-All domain structs use `json:"snake_case"` tags. Handlers use `middleware.RespondJSON` for all responses.
+**Features:** workout, study, sleep, finance, event — each has files at every layer.
 
 **Routes** (all except `/health` require Bearer token from Keycloak):
 - `GET /health`, `GET /me`
-- `/workouts`, `/study`, `/sleep`, `/finance`, `/events` — all have CRUD + `/stats`
+- `/workouts`, `/study`, `/sleep`, `/finance`, `/events` — CRUD + `/stats`
 - `POST /events/:id/sync` — calendar sync
 
-## Frontend (React)
+## Learning Backend (Go)
+
+```bash
+cd learning-backend
+go test ./...
+go run ./cmd/api/main.go
+```
+
+**Stack:** Same as backend (Go 1.22, Chi, go-oidc/v3, mongo-driver, slog)
+
+**Features:** topic, item, progress, user
+
+**Architecture:** Same Clean/Hexagonal pattern as backend.
+
+**Routes:**
+- `GET /health`, `GET /me`
+- `/topics`, `/items`, `/progress`
+
+## Frontend (React — main app)
 
 ```bash
 cd frontend
-npm run dev       # dev server → http://localhost:3000
-npm run build     # tsc + vite build
-npm run lint      # eslint
-npm run lint:fix  # eslint --fix
+npm run dev           # dev server → http://localhost:3000
+npm run dev:local     # APP_ENV=local
+npm run dev:docker    # APP_ENV=docker
+npm run build         # tsc + vite build
+npm run lint:fix
 ```
 
-**Stack:** React 19, TypeScript, Vite, TanStack Query v5, Tailwind CSS, Radix UI, keycloak-js, react-router-dom v7, Lucide React
+**Stack:** React 19, TypeScript 6, Vite, TanStack Query v5, Tailwind CSS v3, Radix UI, keycloak-js v26, react-router-dom v7, Lucide React, `@jeeb/react-shared`
 
 **Structure:**
 ```
 src/
-  hooks/    # TanStack Query hooks — one file per feature (useWorkouts, useStudy, etc.)
-  pages/    # Full-page components (Dashboard, Workouts, Study, Sleep, Finance, Calendar, Settings)
+  hooks/      # TanStack Query hooks — one file per feature
+  pages/      # Dashboard, Workouts, Study, Sleep, Finance, Calendar, Settings
   components/
-  types/    # TypeScript interfaces matching backend snake_case JSON
-  lib/      # API client, utilities
-  store/    # Global state
+  types/      # TypeScript interfaces matching backend snake_case JSON
+  lib/        # API client, utilities
+  store/      # Global state (theme, etc.)
 ```
 
-All API calls go through hooks in `src/hooks/` — never fetch directly in components. Types in `src/types/` must match backend JSON field names exactly.
+All API calls go through hooks in `src/hooks/`. Types in `src/types/` must match backend JSON field names exactly.
 
-**Design system:** Blue-600 primary, Slate neutrals, Lucide icons only (24px, 1.5px stroke), `rounded-lg shadow-sm` cards, fixed 240px left sidebar + fixed header layout.
+**Design system:** Blue-600 primary, Slate neutrals, Lucide icons (24px, 1.5px stroke), `rounded-lg shadow-sm` cards, fixed 240px left sidebar + fixed header. Import shared components from `@jeeb/react-shared`.
+
+## Learning Frontend (React)
+
+```bash
+cd learning-frontend
+npm run dev
+npm run build
+```
+
+**Stack:** React 19, TypeScript 6, Vite, TanStack Query v5, Tailwind CSS v3, keycloak-js v26, react-router-dom v7, `@jeeb/react-shared`
+
+**Pages:** Home (topic list), Topic (item list + progress tracking)
+
+## Shared React Library (jeeb-react-shared)
+
+Published as `@jeeb/react-shared` to the Nexus npm registry. Both frontends consume it.
+
+```bash
+cd jeeb-react-shared
+npm run build    # tsup build → dist/
+npm run dev      # tsup --watch
+```
+
+**Exports:**
+- `@jeeb/react-shared` — re-exports all below
+- `@jeeb/react-shared/ui` — Button, Card, Badge, StatCard, States, SectionLabel
+- `@jeeb/react-shared/charts` — shared chart components
+- `@jeeb/react-shared/auth` — AuthProvider, useAuth, keycloak setup
+- `@jeeb/react-shared/utils` — shared utilities
+
+After changing the library, bump the version, build, and publish to Nexus before frontend changes take effect in the cluster.
+
+## k8s-manager CLI (Go)
+
+```bash
+cd k8s-manager
+go run ./cmd/k8s-manager <command>
+```
+
+**Stack:** Go 1.23, Cobra, k8s client-go, yaml
+
+**Commands:** `setup`, `deploy`, `seed`, `check`, `maintain`, `trust-cert`, `validate`, `kong-key`, `patch-jenkins-creds`, `redeploy-jenkins`, `namespace`, `status`, `restart`, `logs`, `rancher`
+
+Config lives in `k8s-manager/env/secrets.yaml` (gitignored) and `env/config.yaml`.
 
 ## CI/CD
 
-Jenkins polls GitHub (`H/5 * * * *`) and runs pipelines defined in `jenkins/backend/Jenkinsfile` and `jenkins/frontend/Jenkinsfile`. Each pipeline: test → SonarQube → Kaniko build → push to Nexus → `kubectl set image`.
+Jenkins polls GitHub (`H/5 * * * *`) and runs pipelines in `jenkins/pipelines/`. Pipeline flow: test → SonarQube → Kaniko build → push to Nexus → `kubectl set image`.
 
-Jenkins is fully bootstrapped via the `jeeb-infra` Helm chart. Plugins, credentials, and jobs are configured declaratively — no manual setup step needed:
-```bash
-# Fill in credentials in values.yaml (or pass via --set), then:
-bash k8s/apply.sh
+```
+jenkins/
+  pipelines/    # Jenkinsfiles per service
+  jobs/         # Groovy seed job definitions
+  vars/         # Shared pipeline library steps
+  resources/    # Pipeline resource files
 ```
 
-Pipelines use in-cluster service URLs. Images are pushed to `nexus.jeeb.svc.cluster.local:5000/jeeb/<service>` and pulled via `localhost:30050` from outside the cluster.
+Images push to `nexus.jeeb-infra.svc.cluster.local:5000/jeeb/<service>` (in-cluster) and pull via `localhost:30050` from outside.
 
 ## Troubleshooting docs
 
-Whenever a bug or infrastructure problem is fixed in this project, update `docs/troubleshooting/` before closing the task:
+Whenever a bug or infrastructure problem is fixed, update `docs/troubleshooting/` before closing the task:
 
-- Pick the file matching the affected service (`keycloak.md`, `backend.md`, `frontend.md`, `mongodb.md`, `docker.md`) or create a new one if none fits.
-- Add a section with: **Symptoms**, **Root cause**, **Fix** (with exact commands), **Prevention**.
+- Pick the file matching the affected service (`keycloak.md`, `backend.md`, `frontend.md`, `mongodb.md`, `docker.md`) or create a new one.
+- Add a section: **Symptoms**, **Root cause**, **Fix** (with exact commands), **Prevention**.
 - Do this automatically — do not wait for the user to ask.
 
 ## Plan progress tracking
 
-When working from a plan file in `.claude/plans/`, mark each step complete as you finish it by updating `[ ]` to `[x]` in the file. Do this immediately after each step succeeds — not at the end. This lets the plan survive context resets and session restarts.
-
-If a step is partially done or blocked, mark it `[-]` and add a one-line note explaining why.
+When working from a plan file in `.claude/plans/`, mark each step complete by updating `[ ]` to `[x]` immediately after it succeeds. Mark blocked steps `[-]` with a one-line note.
 
 ## Slash commands
 
@@ -183,6 +259,7 @@ If a step is partially done or blocked, mark it `[-]` and add a one-line note ex
 | `/backend` | Go backend tasks with full arch context |
 | `/frontend` | React tasks with design system context |
 | `/k8s` | Kubernetes manifest work |
+| `/k8s-manager` | k8s-manager CLI development |
 | `/jenkins` | CI/CD pipeline help |
 | `/docs` | Write/update documentation |
 | `/status` | Check all pod health |

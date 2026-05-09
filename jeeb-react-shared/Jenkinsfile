@@ -1,0 +1,42 @@
+pipeline {
+  agent any
+
+  environment {
+    NEXUS_NPM_TOKEN = credentials('nexus-npm-token')
+  }
+
+  stages {
+    stage('Install') {
+      steps {
+        sh 'npm ci'
+      }
+    }
+
+    stage('Typecheck') {
+      steps {
+        sh 'npm run typecheck'
+      }
+    }
+
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
+    }
+
+    stage('Publish') {
+      steps {
+        sh '''
+          echo "//nexus.jeeb-infra.svc.cluster.local:8081/repository/npm-hosted/:_authToken=${NEXUS_NPM_TOKEN}" > .npmrc
+          npm publish --registry http://nexus.jeeb-infra.svc.cluster.local:8081/repository/npm-hosted/
+        '''
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'rm -f .npmrc'
+    }
+  }
+}
