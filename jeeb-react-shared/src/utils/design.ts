@@ -9,6 +9,7 @@ export const C = {
   text2:        "var(--c-text2)",
   text3:        "var(--c-text3)",
   primary:      "#7c6ef5",
+  secondary:    "#14b8a6",
   shadow:       "var(--c-shadow)",
   shadowMd:     "var(--c-shadow-md)",
   modalShadow:  "var(--c-modal-shadow)",
