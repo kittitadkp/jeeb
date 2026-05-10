@@ -1,237 +1,12 @@
-# Plan: Workout Feature Enhancements
+# Plan: Period Selector — Analysis Cards + Chart (Revised)
 
 ## Context
 
-Extending the workout feature with per-exercise duration tracking, plan vs actual duration visibility on cards, type-aware forms (cardio/flexibility skip exercise picking), a confirm dialog before starting the tracker, and a simpler settings page that only manages strength exercises.
+The workout page has a period selector (Week / Month / All) that currently only filters the workout list. The user wants:
+1. **Stats cards** to show period-relevant metrics (not always this_week/this_month/streak)
+2. **Chart** to show hours (not counts) in Week mode and visually distinguish planned vs started workouts
 
----
-
-## Changes
-
-### 1. Backend — `backend/internal/domain/workout.go`
-
-Add two fields:
-
-```go
-type Exercise struct {
-    Name            string  `bson:"name" json:"name"`
-    Sets            int     `bson:"sets" json:"sets"`
-    Reps            int     `bson:"reps" json:"reps"`
-    Weight          float64 `bson:"weight" json:"weight"`
-    RestSeconds     int     `bson:"rest_seconds" json:"rest_seconds"`
-    DurationSeconds int     `bson:"duration_seconds" json:"duration_seconds"` // planned per-exercise duration
-}
-
-type Workout struct {
-    ...
-    Duration       int `bson:"duration" json:"duration"`               // planned (user-entered, minutes)
-    ActualDuration int `bson:"actual_duration" json:"actual_duration"` // tracker-recorded (minutes)
-    ...
-}
-```
-
-No changes needed to usecase or handler — they pass structs through generically.
-
----
-
-### 2. Frontend types — `frontend/src/types/index.ts`
-
-```ts
-export interface Exercise {
-  name: string;
-  sets: number;
-  reps: number;
-  weight: number;
-  rest_seconds: number;
-  duration_seconds?: number;   // optional, 0 = not set
-}
-
-export interface Workout {
-  ...
-  duration: number;          // plan (minutes)
-  actual_duration?: number;  // tracker time (minutes), absent on older records
-  ...
-}
-```
-
----
-
-### 3. ExercisePicker — `frontend/src/components/ExercisePicker.tsx`
-
-Add `duration_seconds` to `ExerciseFormEntry` (default `0`).
-
-In the selected-exercise form, add a 4th input "Duration (min)" after Sets/Reps/Rest:
-
-```tsx
-{ label: "Duration (min)", field: "duration_seconds" as const, min: 0 }
-```
-
-Show `duration_seconds / 60` in the input (store as seconds, display as minutes — convert on read/write). Or just store/display in seconds and label it "sec". Keep consistent with existing `rest_seconds`.
-
-Actually: store as seconds (field name is `duration_seconds`), input label "Duration (s)" for consistency.
-
----
-
-### 4. Settings — `frontend/src/constants/master.ts`
-
-Add `fixedDefaults?: Record<string, string | number>` to `MasterCategoryConfig`.
-
-Remove `exercise_type` from `defaultFields` (settings is strength-only — no need to select type). Add `fixedDefaults: { exercise_type: "strength" }` so every created/displayed exercise is strength.
-
-```ts
-export interface MasterCategoryConfig {
-  slug: string;
-  category: string;
-  label: string;
-  defaultFields: MasterDefaultField[];
-  fixedDefaults?: Record<string, string | number>;
-}
-
-// config:
-{
-  slug: "workout",
-  category: "exercise",
-  label: "Exercises",
-  fixedDefaults: { exercise_type: "strength" },
-  defaultFields: [
-    { key: "muscle_group", label: "Muscle Group", type: "string", defaultValue: "" },
-    { key: "sets", label: "Sets", type: "number", defaultValue: 3 },
-    { key: "reps", label: "Reps", type: "number", defaultValue: 10 },
-    { key: "rest_seconds", label: "Set Rest (s)", type: "number", defaultValue: 60 },
-    { key: "transition_rest_seconds", label: "Transition Rest (s)", type: "number", defaultValue: 30 },
-  ],
-}
-```
-
----
-
-### 5. MasterDataCard — `frontend/src/components/MasterDataCard.tsx`
-
-Two changes:
-- **Filter**: only display records where every `fixedDefaults` key matches (e.g., `record.defaults.exercise_type === "strength"`)
-- **Save**: merge `config.fixedDefaults` into `defaults` before calling create/update
-
-```ts
-// filter
-const visible = records.filter((r) =>
-  !config.fixedDefaults ||
-  Object.entries(config.fixedDefaults).every(([k, v]) => String(r.defaults[k] ?? "") === String(v))
-);
-
-// save
-const defaults = {
-  ...Object.fromEntries(config.defaultFields.map((f) => [f.key, formDefaults[f.key]])),
-  ...config.fixedDefaults,
-};
-```
-
----
-
-### 6. Workouts page — `frontend/src/pages/Workouts.tsx`
-
-#### 6a. WorkoutTracker — simplify props
-
-Remove `initialExercises`, `autoStart`, `onSave`. Add `workout: Workout`.
-
-```ts
-function WorkoutTracker({ workout, onClose }: {
-  workout: Workout;
-  onClose: () => void;
-})
-```
-
-- Initialize directly in `"active"` phase (always autoStart from card)
-- Initialize `trackerExs` from `workout.exercises`
-- Initialize `workoutType` from `workout.type`
-- On save: call `useUpdateWorkout({ id: workout.id, actual_duration: duration })` internally (add `useUpdateWorkout` hook inside tracker)
-- Remove `workoutType` state (derived from `workout.type`)
-
-#### 6b. WorkoutCard — confirm dialog + plan/actual duration
-
-**Header area** — show plan and actual duration:
-```tsx
-<div style={{ fontSize: 11, color: C.text2 }}>
-  {workout.actual_duration
-    ? `Plan: ${workout.duration}min · Actual: ${workout.actual_duration}min`
-    : `${workout.duration}min`}
-</div>
-```
-
-**Start button** — show confirm dialog before opening tracker:
-
-Add local state `[confirming, setConfirming] = useState(false)`.
-
-When `confirming`:
-```tsx
-// small overlay modal
-<div style={modal}>
-  <div style={container}>
-    <div>Start "{t(`common.workoutTypes.${workout.type}`)}" workout?</div>
-    <div>exercises list...</div>
-    <Button onClick={() => { setConfirming(false); onStart(workout); }}>▶ Start</Button>
-    <Button variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
-  </div>
-</div>
-```
-
-`onStart` prop replaces `onPlanAgain` — receives the full `Workout` object.
-
-**Exercises list** — show `duration_seconds` if set:
-```
-• Bench Press  3×10 @ 60kg  (120s)
-```
-
-**Start button** — only shown when `workout.type === "strength"` AND exercises exist.
-
-#### 6c. CreateWorkoutForm — type-aware
-
-Only show ExercisePicker when `form.type === "strength"`:
-```tsx
-{form.type === "strength" && (
-  <div>
-    <button type="button" onClick={() => setShowExercises((v) => !v)}>...</button>
-    {showExercises && <ExercisePicker ... />}
-  </div>
-)}
-```
-
-Pass `duration_seconds` in exercise mapping:
-```ts
-const apiExercises = exercises.map((ex) => ({
-  name: ex.name, sets: ex.sets, reps: ex.reps,
-  rest_seconds: ex.rest_seconds, weight: ex.weight,
-  duration_seconds: ex.duration_seconds ?? 0,
-}));
-```
-
-#### 6d. EditWorkoutForm — same type-aware logic
-
-Same as 6c. Only show exercises section when `form.type === "strength"`. Initialize exercises from `workout.exercises` (map `duration_seconds`).
-
-#### 6e. Workouts component — simplified tracker state
-
-Replace `trackerInitialExercises`, `trackerAutoStart` states with single `trackerWorkout: Workout | null`.
-
-```ts
-const [trackerWorkout, setTrackerWorkout] = useState<Workout | null>(null);
-```
-
-```tsx
-{trackerWorkout && (
-  <WorkoutTracker
-    workout={trackerWorkout}
-    onClose={() => setTrackerWorkout(null)}
-  />
-)}
-```
-
-Pass `onStart` to WorkoutCard:
-```tsx
-<WorkoutCard
-  ...
-  onStart={(w) => setTrackerWorkout(w)}
-/>
-```
+No backend changes. All data is computed from the existing stats API (`WorkoutStats`) + the fetched workout list (page 1, sorted newest-first).
 
 ---
 
@@ -239,21 +14,145 @@ Pass `onStart` to WorkoutCard:
 
 | File | Change |
 |------|--------|
-| `backend/internal/domain/workout.go` | Add `DurationSeconds` to Exercise, `ActualDuration` to Workout |
-| `frontend/src/types/index.ts` | Add `duration_seconds?` to Exercise, `actual_duration?` to Workout |
-| `frontend/src/components/ExercisePicker.tsx` | Add `duration_seconds` to form entry + UI input |
-| `frontend/src/constants/master.ts` | Add `fixedDefaults` to interface; remove `exercise_type` field; set `fixedDefaults: { exercise_type: "strength" }` |
-| `frontend/src/components/MasterDataCard.tsx` | Filter records by `fixedDefaults`; merge `fixedDefaults` on save |
-| `frontend/src/pages/Workouts.tsx` | Tracker simplification; confirm dialog; type-aware forms; plan/actual duration display |
+| `frontend/src/pages/Workouts.tsx` | New inline `PeriodBarChart`, new card design per period, new chart data logic |
+| `frontend/src/i18n/locales/en.ts` | Add `workouts.stats.totalHours`, `workouts.stats.avgPerWeek`, `workouts.stats.completionRate`, `workouts.chartTitleMonth`, `workouts.chartTitleAll` |
+| `frontend/src/i18n/locales/th.ts` | Same keys in Thai |
+
+---
+
+## 1. New inline `PeriodBarChart` component
+
+The existing `BarChart` (shared lib) only supports a single value per bar. We need a dual-layer bar showing **planned** (full height, dimmed) vs **started/completed** (colored fill within).
+
+Write a local `PeriodBarChart` in `Workouts.tsx` (no shared lib change):
+
+```tsx
+interface PeriodBar { label: string; planned: number; completed: number; }
+
+function PeriodBarChart({ data, color, height = 64, unit }: {
+  data: PeriodBar[];
+  color: string;
+  height?: number;
+  unit: "h" | "count";
+}) {
+  if (!data.length) return null;
+  const max = Math.max(...data.map((d) => d.planned), 1);
+  const BAR_W = 28, GAP = 10;
+  const n = data.length;
+  const VW = n * (BAR_W + GAP) - GAP;
+  const VH = height + 24;
+  return (
+    <div style={{ width: "100%", maxHeight: height + 40 }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
+        {data.map((d, i) => {
+          const plannedH = Math.max(3, (d.planned / max) * height);
+          const completedH = d.planned > 0 ? Math.max(0, (d.completed / d.planned) * plannedH) : 0;
+          const x = i * (BAR_W + GAP);
+          const fs = Math.min(10, (VW / n) * 0.38);
+          return (
+            <g key={i}>
+              {/* planned (background, dimmed) */}
+              <rect x={x} y={height - plannedH} width={BAR_W} height={plannedH} rx={4}
+                fill={`color-mix(in srgb, ${color} 22%, transparent)`} />
+              {/* completed (foreground, full color) */}
+              {completedH > 0 && (
+                <rect x={x} y={height - completedH} width={BAR_W} height={completedH} rx={4}
+                  fill={color} style={{ transition: "all 0.3s" }} />
+              )}
+              <text x={x + BAR_W / 2} y={height + 15} textAnchor="middle" fontSize={fs}
+                fill={C.text2} fontFamily="Inter,sans-serif">{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+```
+
+---
+
+## 2. Chart data per period
+
+Build bars from `workouts` (full page, unfiltered by type so bars reflect all activity):
+
+**Week** — 7 bars (days), unit = hours:
+```ts
+bars = last 7 days, each bar:
+  label: weekday short (Mon, Tue…)
+  planned: sum(w.duration) for workouts on that day / 60  (hours, 1 decimal)
+  completed: sum(w.actual_duration) for workouts on that day with actual_duration / 60
+```
+
+**Month** — 4 bars (weeks), unit = count:
+```ts
+bars = last 4 weeks (oldest → newest), each bar:
+  label: "Wk 1", "Wk 2", "Wk 3", "Wk 4"
+  planned: workouts created in that week's date range
+  completed: workouts in range that have actual_duration > 0
+```
+
+**All** — 6 bars (months), unit = count:
+```ts
+bars = last 6 months (oldest → newest), each bar:
+  label: month short (Jan, Feb…)
+  planned: workouts created in that calendar month
+  completed: workouts in month with actual_duration > 0
+```
+
+Chart title:
+- week → `t("workouts.chartTitle")` ("This Week")
+- month → `t("workouts.chartTitleMonth")` ("Last 4 Weeks")
+- all → `t("workouts.chartTitleAll")` ("Last 6 Months")
+
+---
+
+## 3. Stats cards per period
+
+Compute from `filtered` (period + type filtered list) and `stats` API:
+
+| Period | Card 1 | Card 2 | Card 3 |
+|--------|--------|--------|--------|
+| **week** | Sessions: `stats.this_week` · "This Week" | Planned hours: `sum(filtered.duration)/60` · "Hours planned" | Streak 🔥 |
+| **month** | Sessions: `stats.this_month` · "This Month" | Avg/week: `stats.this_month / 4 \| 1 decimal` · "Avg / week" | Streak 🔥 |
+| **all** | Sessions: `stats.total` · "All Time" | Total hours: `sum(workouts.duration)/60` · "Hours logged" | Streak 🔥 |
+
+Hours computed client-side as `(sum / 60).toFixed(1)`.
+
+---
+
+## 4. i18n additions
+
+**en.ts** under `workouts.stats`:
+```ts
+hoursPlanned: "Hours planned",
+avgPerWeek: "Avg / week",
+hoursLogged: "Hours logged",
+allTime: "All Time",
+```
+
+**en.ts** under `workouts`:
+```ts
+chartTitleMonth: "Last 4 Weeks",
+chartTitleAll: "Last 6 Months",
+```
+
+Same for **th.ts**:
+```ts
+hoursPlanned: "ชั่วโมงที่วางแผน",
+avgPerWeek: "เฉลี่ย / สัปดาห์",
+hoursLogged: "ชั่วโมงที่ทำไป",
+allTime: "ทั้งหมด",
+chartTitleMonth: "4 สัปดาห์ที่ผ่านมา",
+chartTitleAll: "6 เดือนที่ผ่านมา",
+```
 
 ---
 
 ## Verification
 
-1. `backend`: `go build ./cmd/api/...` — no compile errors
-2. Settings `/settings/workout` — only strength exercises shown; new exercises auto-tagged as strength
-3. Create workout (cardio/flexibility) — exercise picker hidden; only type + duration + notes
-4. Create workout (strength) — exercise picker shown with duration_seconds input
-5. WorkoutCard strength — shows "Plan: Xmin", Start button visible
-6. Start button — confirm dialog appears with exercise list → Start opens tracker → End → card shows "Plan: Xmin · Actual: Ymin"
-7. WorkoutCard cardio/flexibility — no Start button, shows only duration
+1. **Week** → cards show this-week count / planned-hours / streak; chart = 7 day bars in hours with dimmed planned + colored completed portion
+2. **Month** → cards show this-month count / avg per week / streak; chart = 4 weekly count bars
+3. **All** → cards show total count / total hours / streak; chart = 6-month count bars
+4. Switching type filter updates the cards' hours/avg but not the chart bars
+5. `npm run build` — no TypeScript errors
