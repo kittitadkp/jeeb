@@ -11,6 +11,8 @@ Settings persisted to DB: **theme, accent color, currency, week start, display n
 
 ---
 
+## Progress: All 12 steps complete ✓
+
 ## Step-by-step Plan
 
 ### Step 1 — Backend: Extend domain model

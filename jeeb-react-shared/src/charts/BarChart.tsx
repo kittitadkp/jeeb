@@ -20,12 +20,12 @@ export function BarChart({ data, color = C.primary, height = 80 }: BarChartProps
   const VW = n * (BAR_W + GAP) - GAP;
   const VH = height + 20;
   return (
-    <div style={{ width: "100%", overflowX: "hidden" }}>
+    <div style={{ width: "100%", aspectRatio: `${VW} / ${VH}`, maxHeight: height + 40 }}>
       <svg
         width="100%"
-        height={VH}
+        height="100%"
         viewBox={`0 0 ${VW} ${VH}`}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         style={{ display: "block" }}
       >
         {data.map((d, i) => {
@@ -38,7 +38,7 @@ export function BarChart({ data, color = C.primary, height = 80 }: BarChartProps
             <g key={i}>
               <rect
                 x={x} y={y} width={BAR_W} height={barH} rx={R.sm - 1}
-                fill={isLast ? color : `${color}45`}
+                fill={isLast ? color : `color-mix(in srgb, ${color} 27%, transparent)`}
                 style={{ transition: "all 0.3s" }}
               />
               <text

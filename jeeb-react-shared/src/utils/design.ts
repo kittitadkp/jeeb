@@ -8,7 +8,7 @@ export const C = {
   text:         "var(--c-text)",
   text2:        "var(--c-text2)",
   text3:        "var(--c-text3)",
-  primary:      "#7c6ef5",
+  primary:      "var(--c-primary)",
   secondary:    "#14b8a6",
   shadow:       "var(--c-shadow)",
   shadowMd:     "var(--c-shadow-md)",
@@ -74,23 +74,23 @@ export const SECTION_COLORS = {
 export type SectionKey = keyof typeof SECTION_COLORS;
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type AccentColor = 'blue' | 'purple' | 'green' | 'rose' | 'amber';
+export type PrimaryColor = 'blue' | 'purple' | 'green' | 'rose' | 'amber';
 
 export interface UserPreferences {
   theme: ThemeMode;
-  accent_color: AccentColor;
+  primary_color: PrimaryColor;
   currency: string;
   week_start: 'monday' | 'sunday';
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'system',
-  accent_color: 'blue',
+  primary_color: 'blue',
   currency: 'THB',
   week_start: 'monday',
 };
 
-export const ACCENT_COLORS: { value: AccentColor; label: string; hex: string }[] = [
+export const PRIMARY_COLORS: { value: PrimaryColor; label: string; hex: string }[] = [
   { value: 'blue',   label: 'Blue',   hex: '#3b82f6' },
   { value: 'purple', label: 'Purple', hex: '#7c6ef5' },
   { value: 'green',  label: 'Green',  hex: '#10b981' },
