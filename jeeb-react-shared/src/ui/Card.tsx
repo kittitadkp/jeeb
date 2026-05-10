@@ -13,23 +13,24 @@ interface CardProps {
 
 export function Card({ children, style, accent, onClick, className }: CardProps) {
   const [hov, setHov] = useState(false);
+  const interactive = !!onClick;
   return (
     <div
       onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onMouseEnter={interactive ? () => setHov(true) : undefined}
+      onMouseLeave={interactive ? () => setHov(false) : undefined}
       className={cn(className)}
       style={{
         background: C.surface,
         borderRadius: R.card,
         overflow: "hidden",
-        borderTop: accent ? `2px solid ${accent}` : `1px solid ${hov ? C.border2 : C.border}`,
-        borderRight: `1px solid ${hov ? C.border2 : C.border}`,
-        borderBottom: `1px solid ${hov ? C.border2 : C.border}`,
-        borderLeft: `1px solid ${hov ? C.border2 : C.border}`,
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        boxShadow: hov ? C.shadowMd : C.shadow,
-        cursor: onClick ? "pointer" : "default",
+        borderTop: accent ? `2px solid ${accent}` : `1px solid ${C.border}`,
+        borderRight: `1px solid ${interactive && hov ? C.border2 : C.border}`,
+        borderBottom: `1px solid ${interactive && hov ? C.border2 : C.border}`,
+        borderLeft: `1px solid ${interactive && hov ? C.border2 : C.border}`,
+        transition: interactive ? "border-color 0.15s, box-shadow 0.15s" : undefined,
+        boxShadow: interactive && hov ? C.shadowMd : C.shadow,
+        cursor: interactive ? "pointer" : "default",
         position: "relative",
         ...style,
       }}

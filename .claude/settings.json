@@ -1,3 +1,11 @@
 {
-  "plansDirectory": ".claude/plans"
+  "plansDirectory": ".claude/plans",
+  "permissions": {
+    "allow": [
+      "Bash(kubectl get *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl describe *)",
+      "Bash(helm template *)"
+    ]
+  }
 }
