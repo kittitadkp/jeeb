@@ -14,7 +14,7 @@ interface StatCardProps {
 }
 
 export function StatCard({ emoji, label, value, change, trend, accent, sparkData, className }: StatCardProps) {
-  const trendColor = trend === "up" ? "#10b981" : trend === "down" ? "#f43f5e" : C.text2;
+  const trendColor = trend === "up" ? C.success : trend === "down" ? C.negative : C.text2;
   const arrow = trend === "up" ? "↑" : trend === "down" ? "↓" : "";
   const col = accent || C.primary;
 

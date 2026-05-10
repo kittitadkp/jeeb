@@ -26,10 +26,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       border = `1px solid ${hov ? col : col + "60"}`;
       textColor = col;
     } else if (variant === "danger") {
-      const dangerCol = "#f43f5e";
-      bg = hov ? `${dangerCol}25` : `${dangerCol}15`;
-      border = `1px solid ${dangerCol}50`;
-      textColor = dangerCol;
+      bg = hov ? `${C.danger}25` : `${C.danger}15`;
+      border = `1px solid ${C.danger}50`;
+      textColor = C.danger;
     } else if (variant === "ghost") {
       bg = hov ? C.surface2 : "transparent";
       border = "1px solid transparent";

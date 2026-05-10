@@ -23,12 +23,14 @@ export function Card({ children, style, accent, onClick, className }: CardProps)
         background: C.surface,
         borderRadius: R.card,
         overflow: "hidden",
-        border: `1px solid ${hov ? C.border2 : C.border}`,
+        borderTop: accent ? `2px solid ${accent}` : `1px solid ${hov ? C.border2 : C.border}`,
+        borderRight: `1px solid ${hov ? C.border2 : C.border}`,
+        borderBottom: `1px solid ${hov ? C.border2 : C.border}`,
+        borderLeft: `1px solid ${hov ? C.border2 : C.border}`,
         transition: "border-color 0.15s, box-shadow 0.15s",
-        boxShadow: hov ? "0 4px 12px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.05)",
+        boxShadow: hov ? C.shadowMd : C.shadow,
         cursor: onClick ? "pointer" : "default",
         position: "relative",
-        ...(accent ? { borderTop: `2px solid ${accent}` } : {}),
         ...style,
       }}
     >

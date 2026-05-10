@@ -13,6 +13,7 @@ export const C = {
   shadowMd:     "var(--c-shadow-md)",
   modalShadow:  "var(--c-modal-shadow)",
   success:      "#16A34A",
+  negative:     "#ef4444",
   danger:       "#DC2626",
   warning:      "#D97706",
   dangerBg:     "var(--c-danger-bg)",
