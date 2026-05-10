@@ -72,3 +72,28 @@ export const SECTION_COLORS = {
 } as const;
 
 export type SectionKey = keyof typeof SECTION_COLORS;
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type AccentColor = 'blue' | 'purple' | 'green' | 'rose' | 'amber';
+
+export interface UserPreferences {
+  theme: ThemeMode;
+  accent_color: AccentColor;
+  currency: string;
+  week_start: 'monday' | 'sunday';
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  theme: 'system',
+  accent_color: 'blue',
+  currency: 'THB',
+  week_start: 'monday',
+};
+
+export const ACCENT_COLORS: { value: AccentColor; label: string; hex: string }[] = [
+  { value: 'blue',   label: 'Blue',   hex: '#3b82f6' },
+  { value: 'purple', label: 'Purple', hex: '#7c6ef5' },
+  { value: 'green',  label: 'Green',  hex: '#10b981' },
+  { value: 'rose',   label: 'Rose',   hex: '#f43f5e' },
+  { value: 'amber',  label: 'Amber',  hex: '#f59e0b' },
+];
