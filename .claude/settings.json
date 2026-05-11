@@ -40,6 +40,23 @@
       "mcp__MCP_DOCKER__ping"
     ]
   },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,os,subprocess,pathlib; d=json.loads(os.environ.get('CLAUDE_TOOL_INPUT','{}')); f=d.get('file_path',''); exit(0) if not f.endswith('.go') else None; subprocess.run(['gofmt','-w',f]); r=subprocess.run(['go','vet','./...'],cwd=str(pathlib.Path(f).parent),capture_output=True,text=True); print(r.stdout+r.stderr) if r.returncode!=0 else None\""
+          },
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,os,subprocess,pathlib; d=json.loads(os.environ.get('CLAUDE_TOOL_INPUT','{}')); f=d.get('file_path',''); exit(0) if not f.endswith(('.ts','.tsx')) else None; pts=pathlib.Path(f).parents; p=next((pts[i] for i in range(min(10,len(pts))) if (pts[i]/'tsconfig.json').exists()),pts[0]); r=subprocess.run(['npx','tsc','--noEmit'],cwd=str(p),capture_output=True,text=True); print((r.stdout+r.stderr)[-3000:]) if r.returncode!=0 else None\""
+          }
+        ]
+      }
+    ]
+  },
   "skillOverrides": {
     "golang-concurrency": "off",
     "golang-context": "off",

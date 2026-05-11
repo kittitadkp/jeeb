@@ -244,6 +244,53 @@ jenkins/
 
 Images push to `nexus.jeeb-infra.svc.cluster.local:5000/jeeb/<service>` (in-cluster) and pull via `localhost:30050` from outside.
 
+## Wiki (Obsidian knowledge base)
+
+The Obsidian vault is the **project root** (`D:\personal\jeeb`). Wiki pages live in `wiki/` (gitignored — generated content, not source code).
+
+Run `/wiki-update` after:
+- Adding a new feature or domain (new route group, new page, new service)
+- Introducing a new architectural pattern or abstraction
+- Making a significant infrastructure change (new Helm chart, new K8s component)
+- Fixing a bug that revealed a non-obvious constraint or lesson learned
+- Any decision that would confuse you returning to the codebase in 3 months
+
+Do **not** run `/wiki-update` for routine bug fixes, UI tweaks, or dependency bumps.
+
+## Go conventions
+
+**New feature = all 5 hexagonal layers.** Adding a domain concept requires files at every layer:
+`domain/` → `port/in/` → `port/out/` → `usecase/` → `adapter/in/http/handler/` + `adapter/out/mongo/`
+Never import across layer boundaries (e.g. handler must not import domain directly, only through usecase interfaces).
+
+**Error handling:** Wrap errors with context using `fmt.Errorf("action: %w", err)`. Never `panic` in domain or usecase layers. Only `log.Fatal` in `cmd/` entry points.
+
+**Tests:** Usecase logic with branching requires table-driven tests. Repositories and handlers don't need unit tests — the running cluster covers integration paths.
+
+**Avoid:** global state, `init()` functions, embedding structs for behavior (use interfaces instead).
+
+## TypeScript / React conventions
+
+**API calls:** All API calls go through hooks in `src/hooks/`. Components never call `api.*` directly.
+
+**Types:** All interfaces in `src/types/index.ts` use `snake_case` field names matching the backend JSON exactly. Never add a frontend type that doesn't have a corresponding backend struct.
+
+**No `any`:** Use `unknown` + narrowing, or define a proper interface. `as any` only for unavoidable third-party interop.
+
+**Mutations:** Body type is always `Omit<Entity, 'id' | 'user_id' | 'created_at' | 'updated_at'>` — the server assigns those fields.
+
+**Design tokens:** Use `C`, `T`, `W`, `R`, `S` from `src/lib/design.ts` for inline styles. Don't scatter raw hex values or pixel numbers directly in components.
+
+## Git commit format
+
+```
+type: short description (imperative, lowercase, no period)
+```
+
+Types: `feat` `fix` `chore` `refactor` `docs` `test` `infra`
+
+Examples: `feat: add sleep stats endpoint` · `fix: workout duration not saved on update` · `infra: add vault policy for learning-backend`
+
 ## Troubleshooting docs
 
 Whenever a bug or infrastructure problem is fixed, update `docs/troubleshooting/` before closing the task:
