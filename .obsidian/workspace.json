@@ -162,8 +162,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -178,6 +177,8 @@
   },
   "active": "6b981c18910bf538",
   "lastOpenFiles": [
+    "CLAUDE.md",
+    "AGENTS.md",
     "wiki/projects/jeeb/kong-gateway.md",
     "wiki/projects/jeeb/observability-stack.md",
     "frontend/node_modules/ms/license.md",

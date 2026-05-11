@@ -1,7 +1,8 @@
 {
   "userIgnoreFilters": [
-    "node_modules",
-    "dist",
-    ".git"
+    "frontend/node_modules",
+    "learning-frontend/node_modules",
+    "frontend/dist",
+    "learning-frontend/dist"
   ]
 }
