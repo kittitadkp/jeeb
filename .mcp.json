@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "MCP_DOCKER": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-docker"
+      ]
+    }
+  }
+}

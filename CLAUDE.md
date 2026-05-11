@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Shell preference
+
+Always use the Bash tool for shell commands. Never use PowerShell.
+
 ## Repository layout
 
 This is a full monorepo — all application and infrastructure code lives here:
