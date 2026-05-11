@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "f96cad1640a21cda",
+        "id": "bd306cb52d5ab1f8",
         "type": "tabs",
         "children": [
           {
-            "id": "a505392ebd127c8f",
+            "id": "6b981c18910bf538",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -176,7 +176,7 @@
       "bases:Create new base": false
     }
   },
-  "active": "a505392ebd127c8f",
+  "active": "6b981c18910bf538",
   "lastOpenFiles": [
     "wiki/projects/jeeb/kong-gateway.md",
     "wiki/projects/jeeb/observability-stack.md",
