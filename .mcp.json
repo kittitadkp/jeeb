@@ -1,11 +1,18 @@
 {
   "mcpServers": {
     "MCP_DOCKER": {
-      "command": "npx",
+      "command": "docker",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-docker"
+        "mcp",
+        "gateway",
+        "run",
+        "--profile",
+        "default"
       ]
+    },
+    "obsidian": {
+      "command": "npx",
+      "args": ["-y", "mcp-obsidian", "D:\\personal\\jeeb\\wiki"]
     }
   }
 }

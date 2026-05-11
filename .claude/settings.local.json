@@ -7,7 +7,8 @@
       "Bash(jobs)",
       "Bash(echo \"PID: $!\")",
       "Bash(python -m json.tool)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   },
   "enableAllProjectMcpServers": true
