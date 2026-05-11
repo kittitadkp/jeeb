@@ -7,5 +7,27 @@
       "Bash(kubectl describe *)",
       "Bash(helm template *)"
     ]
+  },
+  "skillOverrides": {
+    "golang-concurrency": "off",
+    "golang-context": "off",
+    "golang-data-structures": "off",
+    "golang-design-patterns": "off",
+    "golang-error-handling": "off",
+    "golang-naming": "off",
+    "golang-patterns": "off",
+    "golang-performance": "off",
+    "golang-popular-libraries": "off",
+    "golang-project-layout": "off",
+    "golang-samber-oops": "off",
+    "golang-security": "off",
+    "golang-swagger": "off",
+    "golang-testing": "off",
+    "golang-troubleshooting": "off",
+    "vercel-react-best-practices": "off",
+    "sequential-thinking": "off",
+    "k8s-security-policies": "off",
+    "k8s-yaml-validator": "off",
+    "k8s-manifest-generator": "off"
   }
 }
