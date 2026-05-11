@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "770571c7e6859415",
+        "id": "66d0dfe3f5a64073",
         "type": "tabs",
         "children": [
           {
-            "id": "0c4ee1e76fd23544",
+            "id": "fb58ceee210014c1",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -176,8 +176,18 @@
       "bases:Create new base": false
     }
   },
-  "active": "8fee5e7778d8e410",
+  "active": "fb58ceee210014c1",
   "lastOpenFiles": [
+    "wiki/projects/jeeb/kong-gateway.md",
+    "wiki/projects/jeeb/observability-stack.md",
+    "frontend/node_modules/ms/license.md",
+    "wiki/projects/jeeb/user-preferences-and-settings.md",
+    "docs/learn/guides/advanced-typescript.md",
+    "docs/learn/guides",
+    "docs/learn",
+    "docs",
+    "wiki/projects/jeeb/frontend-architecture.md",
+    "wiki/projects/jeeb/learning-platform.md",
     "wiki/projects/jeeb/k8s-manager-cli.md",
     "wiki/projects/jeeb/cicd-pipeline.md",
     "wiki/projects/jeeb/vault-secrets-pattern.md",
@@ -194,9 +204,6 @@
     "wiki/skills",
     "wiki/references",
     "wiki/projects",
-    "wiki/journal",
-    "wiki/entities",
-    "wiki/concepts",
     "hot.md",
     "log.md",
     "index.md"
