@@ -8,7 +8,8 @@
       "Bash(echo \"PID: $!\")",
       "Bash(python -m json.tool)",
       "Read(//tmp/**)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__MCP_DOCKER__read_file"
     ]
   },
   "enableAllProjectMcpServers": true
